@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+
+# Data & Models (Do not commit heavy raw filings or huge checkpoints)
+data/raw/sec/*.html
+data/raw/sec/*.htm
+*.bin
+*.safetensors
+*.pt
+kaggle/output/
+
+# Logs & Environment
+.env
+*.log
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+.DS_Store

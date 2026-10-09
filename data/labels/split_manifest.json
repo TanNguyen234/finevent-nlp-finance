@@ -1,0 +1,15 @@
+{
+  "total_gold": 290,
+  "train_count": 183,
+  "val_count": 51,
+  "test_count": 56,
+  "train_years": "2019-2023",
+  "val_years": "2024",
+  "test_years": "2025-2026",
+  "class_distribution_gold": {
+    "GUIDANCE_REVISION": 81,
+    "EARNINGS_RESULT": 74,
+    "MANAGEMENT_CHANGE": 69,
+    "OTHER": 66
+  }
+}

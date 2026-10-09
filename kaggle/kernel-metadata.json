@@ -1,0 +1,17 @@
+{
+  "id": "finevent-nlp-training-gpu",
+  "title": "FinEvent NLP Training GPU",
+  "code_file": "train_finevent.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "finevent-benchmark-dataset"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
