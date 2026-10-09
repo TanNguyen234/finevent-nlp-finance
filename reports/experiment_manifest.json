@@ -36,12 +36,27 @@
       "false_positive_revisions_strict_identity": 0
     },
     {
-      "experiment_id": "E2_KAGGLE_TRANSFORMERS",
+      "experiment_id": "E2_A_DEBERTA_V3_SMALL",
       "kernel_slug": "foxy0505/finevent-nlp-training-gpu",
-      "target_models": ["microsoft/deberta-v3-small", "ProsusAI/finbert"],
-      "hardware": "Kaggle Cloud GPU",
-      "status": "RUNNING",
-      "tracking_url": "https://www.kaggle.com/code/foxy0505/finevent-nlp-training-gpu"
+      "model": "microsoft/deberta-v3-small",
+      "hardware": "Kaggle Cloud GPU Tesla T4 (CUDA)",
+      "evaluation_status": "VERIFIED_DOWNLOADED",
+      "train_duration_sec": 7.94,
+      "pre_train_val_macro_f1": 0.0952,
+      "post_train_val_macro_f1": 0.3588,
+      "delta_val_f1": 0.2636,
+      "test_macro_f1": 0.3677,
+      "test_accuracy": 0.5179,
+      "metrics_artifact": "reports/kaggle_runs/kaggle/output/E2_DeBERTa_v3_small_metrics.json",
+      "checkpoint_dir": "reports/kaggle_runs/kaggle/output/E2_DeBERTa_v3_small/checkpoint-12"
+    },
+    {
+      "experiment_id": "E2_B_FINBERT",
+      "kernel_slug": "foxy0505/finevent-nlp-training-gpu",
+      "model": "ProsusAI/finbert",
+      "hardware": "Kaggle Cloud GPU Tesla T4 (CUDA)",
+      "evaluation_status": "VERIFIED_DOWNLOADED",
+      "checkpoint_dir": "reports/kaggle_runs/kaggle/output/E2_FinBERT/checkpoint-12"
     }
   ]
 }
