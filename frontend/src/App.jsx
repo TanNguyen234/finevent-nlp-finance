@@ -17,11 +17,36 @@ export default function App() {
   const [predictionResult, setPredictionResult] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Fetch changes and events
+  const [serverHealth, setServerHealth] = useState({
+    status: 'connecting',
+    active_model: 'CHECKING...',
+    dataset_mode: 'UNKNOWN',
+  });
+
+  // Check health and fetch data
   useEffect(() => {
+    checkHealth();
     fetchChanges();
     fetchEvents();
   }, [selectedCik, fromDate, toDate]);
+
+  const checkHealth = async () => {
+    try {
+      const res = await fetch('http://localhost:8000/health');
+      if (res.ok) {
+        const data = await res.json();
+        setServerHealth({
+          status: 'online',
+          active_model: data.active_model,
+          dataset_mode: data.dataset_mode,
+        });
+      } else {
+        setServerHealth({ status: 'offline', active_model: 'NONE', dataset_mode: 'DISCONNECTED' });
+      }
+    } catch {
+      setServerHealth({ status: 'offline', active_model: 'NONE', dataset_mode: 'DISCONNECTED' });
+    }
+  };
 
   const fetchChanges = async () => {
     try {
@@ -81,11 +106,20 @@ export default function App() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <div className="badge-live">
-            <span className="pulse-dot"></span>
-            FASTAPI V1 CONNECTED
+          <div className="badge-live" style={{
+            background: serverHealth.status === 'online' ? 'rgba(0, 230, 118, 0.15)' : 'rgba(255, 61, 0, 0.15)',
+            color: serverHealth.status === 'online' ? 'var(--accent-green)' : 'var(--accent-red)',
+            borderColor: serverHealth.status === 'online' ? 'rgba(0, 230, 118, 0.3)' : 'rgba(255, 61, 0, 0.3)'
+          }}>
+            <span className="pulse-dot" style={{
+              background: serverHealth.status === 'online' ? 'var(--accent-green)' : 'var(--accent-red)',
+              boxShadow: serverHealth.status === 'online' ? '0 0 8px var(--accent-green)' : '0 0 8px var(--accent-red)'
+            }}></span>
+            API: {serverHealth.status.toUpperCase()}
           </div>
-          <span className="mono" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>GPU: KAGGLE TESLA T4 READY</span>
+          <span className="mono" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            MODEL: {serverHealth.active_model} | DATA: {serverHealth.dataset_mode}
+          </span>
         </div>
       </header>
 

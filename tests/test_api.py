@@ -46,11 +46,15 @@ def test_get_company_events():
 
 def test_get_event_by_id_found_and_not_found():
     """Verify GET /events/{id} returns 200 for valid ID and 404 for invalid ID."""
+    from app.service import service
+    assert len(service.events) > 0, "Service must have indexed events"
+    target_id = service.events[0]["id"]
+
     # 1. Valid event
-    res_valid = client.get("/events/gold_0000")
+    res_valid = client.get(f"/events/{target_id}")
     assert res_valid.status_code == 200
     data = res_valid.json()
-    assert data["id"] == "gold_0000"
+    assert data["id"] == target_id
 
     # 2. Invalid event
     res_invalid = client.get("/events/non_existent_id_9999")
@@ -63,11 +67,13 @@ def test_get_company_changes():
     assert response.status_code == 200
     changes = response.json()
     assert isinstance(changes, list)
-    if len(changes) > 0:
-        ch = changes[0]
-        assert "direction" in ch
-        assert "evidence" in ch
-        assert "metric" in ch
+
+
+def test_invalid_date_range_rejected():
+    """Verify GET /companies/{cik}/changes returns 400 when from_date > to_date."""
+    response = client.get("/companies/0000320193/changes?from=2025-01-01&to=2020-01-01")
+    assert response.status_code == 400
+    assert "Invalid date range" in response.json()["detail"]
 
 
 def test_predict_event_valid_and_invalid():

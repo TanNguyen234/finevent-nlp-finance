@@ -1,0 +1,47 @@
+{
+  "project": "finevent-nlp-finance",
+  "baseline_commit": "662aabe",
+  "experiments": [
+    {
+      "experiment_id": "E0_RULE_BASELINE",
+      "model": "rule_based_keyword_regex",
+      "dataset_origin": "REAL_SEC",
+      "dataset_hash": "426b0fa8c29a07e0a230dc79c09576b7d37cdf02fba31eef45a40466eae579d6",
+      "split_strategy": "group_aware_temporal",
+      "random_seed": 42,
+      "evaluation_status": "VERIFIED",
+      "metrics_artifact": "reports/real_baseline_metrics.json",
+      "test_macro_f1": 0.50,
+      "test_accuracy": 0.60
+    },
+    {
+      "experiment_id": "E1_TFIDF_LOGREG",
+      "model": "tfidf_logistic_regression",
+      "dataset_origin": "REAL_SEC",
+      "dataset_hash": "426b0fa8c29a07e0a230dc79c09576b7d37cdf02fba31eef45a40466eae579d6",
+      "split_strategy": "group_aware_temporal",
+      "random_seed": 42,
+      "evaluation_status": "VERIFIED",
+      "metrics_artifact": "reports/real_baseline_metrics.json",
+      "test_macro_f1": 0.50,
+      "test_accuracy": 0.60
+    },
+    {
+      "experiment_id": "ABLATION_GUIDANCE_IDENTITY",
+      "model": "change_detection_ablation",
+      "dataset_origin": "REAL_SEC",
+      "evaluation_status": "VERIFIED",
+      "metrics_artifact": "reports/ablation_results.json",
+      "false_positive_revisions_naive": 3,
+      "false_positive_revisions_strict_identity": 0
+    },
+    {
+      "experiment_id": "E2_KAGGLE_TRANSFORMERS",
+      "kernel_slug": "foxy0505/finevent-nlp-training-gpu",
+      "target_models": ["microsoft/deberta-v3-small", "ProsusAI/finbert"],
+      "hardware": "Kaggle Cloud GPU",
+      "status": "RUNNING",
+      "tracking_url": "https://www.kaggle.com/code/foxy0505/finevent-nlp-training-gpu"
+    }
+  ]
+}

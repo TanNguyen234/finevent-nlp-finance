@@ -1,6 +1,9 @@
 """Baseline models training and evaluation (E0: Rule & E1: TF-IDF + LogReg).
 
-Implements the deterministic benchmark floor and lightweight statistical NLP model.
+Evaluates on both:
+1. Synthetic sanity benchmark (data/synthetic/)
+2. Verified seeds benchmark (data/labels/)
+Explicitly tracks data origin and prevents claiming synthetic scores as real SEC performance.
 """
 
 from __future__ import annotations
@@ -12,7 +15,6 @@ import pathlib
 import sys
 from typing import Any, Dict, List
 
-# Ensure project root is in sys.path
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -42,7 +44,7 @@ class RuleBaselineE0:
             return "MANAGEMENT_CHANGE"
         if any(k in t_low for k in ["revis", "expects revenue to", "expect gross margin", "guidance", "outlook", "forecasts total", "raises total revenue"]):
             return "GUIDANCE_REVISION"
-        if any(k in t_low for k in ["posted quarterly", "reported financial results", "quarterly revenue of", "diluted earnings per share", "march quarter record"]):
+        if any(k in t_low for k in ["posted quarterly", "reported financial results", "quarterly revenue of", "diluted earnings per share", "march quarter record", "quarterly diluted earnings"]):
             return "EARNINGS_RESULT"
         return "OTHER"
 
@@ -58,8 +60,8 @@ def train_e1_tfidf_logreg(
     pipeline = make_pipeline(
         TfidfVectorizer(
             ngram_range=(1, 2),
-            min_df=2,
-            max_features=4000,
+            min_df=1,
+            max_features=3000,
             sublinear_tf=True,
         ),
         LogisticRegression(
@@ -73,59 +75,55 @@ def train_e1_tfidf_logreg(
     return pipeline
 
 
-def run_all_baselines() -> Dict[str, Any]:
-    """Train and evaluate E0 and E1 on train/val/test splits."""
-    train_df = pd.read_json("data/labels/train.jsonl", lines=True)
-    val_df = pd.read_json("data/labels/val.jsonl", lines=True)
-    test_df = pd.read_json("data/labels/test.jsonl", lines=True)
+def evaluate_split_dataset(data_dir: pathlib.Path, origin_label: str) -> Dict[str, Any]:
+    """Train and evaluate baselines on a specific dataset partition."""
+    train_df = pd.read_json(data_dir / "train.jsonl", lines=True)
+    val_df = pd.read_json(data_dir / "val.jsonl", lines=True)
+    test_df = pd.read_json(data_dir / "test.jsonl", lines=True)
 
-    print(f"Loaded datasets: Train={len(train_df)}, Val={len(val_df)}, Test={len(test_df)}")
-
-    # 1. E0: Rule Baseline
-    e0_model = RuleBaselineE0()
-    e0_val_preds = e0_model.predict(val_df["text"].tolist())
-    e0_test_preds = e0_model.predict(test_df["text"].tolist())
-
-    e0_val_metrics = compute_classification_metrics(val_df["event_type"].tolist(), e0_val_preds)
+    # 1. E0 Rule
+    e0 = RuleBaselineE0()
+    e0_test_preds = e0.predict(test_df["text"].tolist())
     e0_test_metrics = compute_classification_metrics(test_df["event_type"].tolist(), e0_test_preds)
 
-    print("\n--- E0: Rule Baseline Results ---")
-    print(f"Validation Macro-F1: {e0_val_metrics['macro_f1']:.4f}")
-    print(f"Test Macro-F1:       {e0_test_metrics['macro_f1']:.4f}")
-
-    # 2. E1: TF-IDF + Logistic Regression
-    e1_pipeline = train_e1_tfidf_logreg(train_df)
-    e1_val_preds = e1_pipeline.predict(val_df["text"].tolist()).tolist()
-    e1_test_preds = e1_pipeline.predict(test_df["text"].tolist()).tolist()
-
-    e1_val_metrics = compute_classification_metrics(val_df["event_type"].tolist(), e1_val_preds)
+    # 2. E1 TF-IDF + LogReg
+    e1_pipe = train_e1_tfidf_logreg(train_df)
+    e1_test_preds = e1_pipe.predict(test_df["text"].tolist()).tolist()
     e1_test_metrics = compute_classification_metrics(test_df["event_type"].tolist(), e1_test_preds)
 
-    print("\n--- E1: TF-IDF + Logistic Regression Results ---")
-    print(f"Validation Macro-F1: {e1_val_metrics['macro_f1']:.4f}")
-    print(f"Test Macro-F1:       {e1_test_metrics['macro_f1']:.4f}")
-
-    # Save model artifact
-    model_save_path = MODELS_DIR / "baseline_tfidf_logreg.joblib"
-    joblib.dump(e1_pipeline, model_save_path)
-    print(f"\nSaved E1 model to {model_save_path}")
-
-    # Compile benchmark summary
-    summary = {
-        "E0_Rule": {
-            "validation": e0_val_metrics,
-            "test": e0_test_metrics,
+    return {
+        "dataset_origin": origin_label,
+        "sample_counts": {
+            "train": len(train_df),
+            "val": len(val_df),
+            "test": len(test_df),
         },
-        "E1_TFIDF_LogReg": {
-            "validation": e1_val_metrics,
-            "test": e1_test_metrics,
-        },
+        "E0_Rule": e0_test_metrics,
+        "E1_TFIDF_LogReg": e1_test_metrics,
+        "model_pipeline": e1_pipe,
     }
 
-    with open(REPORTS_DIR / "baseline_metrics.json", "w", encoding="utf-8") as f:
-        json.dump(summary, f, indent=2)
 
-    return summary
+def run_all_baselines() -> None:
+    # 1. Synthetic sanity benchmark
+    syn_dir = pathlib.Path("data/synthetic")
+    if (syn_dir / "train.jsonl").exists():
+        syn_results = evaluate_split_dataset(syn_dir, "SYNTHETIC_TEMPLATE")
+        with open(REPORTS_DIR / "synthetic_baseline_metrics.json", "w", encoding="utf-8") as f:
+            clean_res = {k: v for k, v in syn_results.items() if k != "model_pipeline"}
+            json.dump(clean_res, f, indent=2)
+        print("Completed Synthetic Benchmark:", clean_res["E1_TFIDF_LogReg"]["macro_f1"])
+
+    # 2. Real verified seeds benchmark
+    real_dir = pathlib.Path("data/labels")
+    if (real_dir / "train.jsonl").exists():
+        real_results = evaluate_split_dataset(real_dir, "MANUALLY_AUTHORED_SEEDS")
+        # Save production E1 model
+        joblib.dump(real_results["model_pipeline"], MODELS_DIR / "baseline_tfidf_logreg.joblib")
+        with open(REPORTS_DIR / "real_baseline_metrics.json", "w", encoding="utf-8") as f:
+            clean_res = {k: v for k, v in real_results.items() if k != "model_pipeline"}
+            json.dump(clean_res, f, indent=2)
+        print("Completed Real Seeds Benchmark:", clean_res["E1_TFIDF_LogReg"]["macro_f1"])
 
 
 if __name__ == "__main__":

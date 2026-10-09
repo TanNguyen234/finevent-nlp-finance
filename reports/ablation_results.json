@@ -1,0 +1,26 @@
+{
+  "experiment": "Guidance Identity & Unit Normalization Ablation",
+  "total_boundary_test_cases": 4,
+  "configurations": {
+    "Full_Pipeline": {
+      "identity_validation": true,
+      "unit_normalization": true,
+      "accuracy": 1.0,
+      "false_positive_revisions": 0
+    },
+    "A1_No_Identity_Matching": {
+      "identity_validation": false,
+      "unit_normalization": true,
+      "accuracy": 0.25,
+      "false_positive_revisions": 3,
+      "impact": "Collapses multi-period revisions across quarters and compares GAAP against Non-GAAP"
+    },
+    "A2_No_Unit_Validation": {
+      "identity_validation": true,
+      "unit_normalization": false,
+      "accuracy": 0.5,
+      "false_positive_revisions": 1,
+      "impact": "Attempts cross-dimensional math between percentage ratios and dollar revenue"
+    }
+  }
+}

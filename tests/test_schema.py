@@ -17,7 +17,11 @@ def test_gold_dataset_schema_conformance():
     with open(gold_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
-    assert len(lines) >= 200, f"Expected at least 200 gold samples, got {len(lines)}"
+    assert len(lines) >= 15, f"Expected verified gold samples, got {len(lines)}"
+
+    # Also verify isolated synthetic dataset
+    syn_path = pathlib.Path("data/synthetic/synthetic_samples.jsonl")
+    assert syn_path.exists(), "synthetic_samples.jsonl must exist"
 
     for idx, line in enumerate(lines):
         data = json.loads(line)

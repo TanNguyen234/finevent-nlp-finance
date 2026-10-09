@@ -1,0 +1,134 @@
+{
+  "dataset_origin": "SYNTHETIC_TEMPLATE",
+  "sample_counts": {
+    "train": 123,
+    "val": 26,
+    "test": 51
+  },
+  "E0_Rule": {
+    "macro_f1": 0.9447,
+    "weighted_f1": 0.9786,
+    "per_class": {
+      "GUIDANCE_REVISION": {
+        "precision": 1.0,
+        "recall": 0.6667,
+        "f1": 0.8,
+        "support": 3.0
+      },
+      "EARNINGS_RESULT": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 2.0
+      },
+      "MANAGEMENT_CHANGE": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 23.0
+      },
+      "OTHER": {
+        "precision": 0.9583,
+        "recall": 1.0,
+        "f1": 0.9787,
+        "support": 23.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        2,
+        0,
+        0,
+        1
+      ],
+      [
+        0,
+        2,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        23,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        23
+      ]
+    ],
+    "classes": [
+      "GUIDANCE_REVISION",
+      "EARNINGS_RESULT",
+      "MANAGEMENT_CHANGE",
+      "OTHER"
+    ],
+    "total_evaluated": 51
+  },
+  "E1_TFIDF_LogReg": {
+    "macro_f1": 1.0,
+    "weighted_f1": 1.0,
+    "per_class": {
+      "GUIDANCE_REVISION": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 3.0
+      },
+      "EARNINGS_RESULT": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 2.0
+      },
+      "MANAGEMENT_CHANGE": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 23.0
+      },
+      "OTHER": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 23.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        3,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        2,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        23,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        23
+      ]
+    ],
+    "classes": [
+      "GUIDANCE_REVISION",
+      "EARNINGS_RESULT",
+      "MANAGEMENT_CHANGE",
+      "OTHER"
+    ],
+    "total_evaluated": 51
+  }
+}

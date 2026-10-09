@@ -44,6 +44,19 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 DATA_INPUT_DIR = pathlib.Path("/kaggle/input/finevent-benchmark-dataset")
 if not (DATA_INPUT_DIR / "train.jsonl").exists():
     DATA_INPUT_DIR = pathlib.Path("data/labels")
+if not (DATA_INPUT_DIR / "train.jsonl").exists():
+    DATA_INPUT_DIR = pathlib.Path("/kaggle/working/data/labels")
+    DATA_INPUT_DIR.mkdir(parents=True, exist_ok=True)
+    import urllib.request
+    base_url = "https://raw.githubusercontent.com/TanNguyen234/finevent-nlp-finance/main/data/labels"
+    for fname in ["train.jsonl", "val.jsonl", "test.jsonl"]:
+        target_f = DATA_INPUT_DIR / fname
+        if not target_f.exists():
+            logger.info(f"Downloading {fname} from GitHub raw...")
+            try:
+                urllib.request.urlretrieve(f"{base_url}/{fname}", target_f)
+            except Exception as e:
+                logger.warning(f"Could not download {fname}: {e}")
 
 CLASSES = ["GUIDANCE_REVISION", "EARNINGS_RESULT", "MANAGEMENT_CHANGE", "OTHER"]
 LABEL2ID = {c: i for i, c in enumerate(CLASSES)}
@@ -99,6 +112,7 @@ def train_and_evaluate_model(model_name: str, exp_id: str, train_df, val_df, tes
         num_labels=len(CLASSES),
         id2label=ID2LABEL,
         label2id=LABEL2ID,
+        ignore_mismatched_sizes=True,
     ).to(device)
 
     # Convert to HuggingFace datasets
@@ -120,7 +134,7 @@ def train_and_evaluate_model(model_name: str, exp_id: str, train_df, val_df, tes
     model_output_dir = OUTPUT_DIR / exp_id
     training_args = TrainingArguments(
         output_dir=str(model_output_dir),
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
         save_strategy="epoch",
         learning_rate=3e-5,
         per_device_train_batch_size=8,
@@ -128,13 +142,13 @@ def train_and_evaluate_model(model_name: str, exp_id: str, train_df, val_df, tes
         gradient_accumulation_steps=2,
         num_train_epochs=3,
         weight_decay=0.01,
-        warmup_ratio=0.1,
+        warmup_steps=10,
         load_best_model_at_end=True,
         metric_for_best_model="macro_f1",
         greater_is_better=True,
         logging_steps=10,
         report_to="none",
-        fp16=torch.cuda.is_available(),
+        fp16=False,
     )
 
     trainer = Trainer(
@@ -142,7 +156,6 @@ def train_and_evaluate_model(model_name: str, exp_id: str, train_df, val_df, tes
         args=training_args,
         train_dataset=tokenized_train,
         eval_dataset=tokenized_val,
-        tokenizer=tokenizer,
         data_collator=DataCollatorWithPadding(tokenizer=tokenizer),
         compute_metrics=compute_metrics,
         callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],
