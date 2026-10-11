@@ -28,23 +28,17 @@ def test_temporal_split_boundaries():
     val_data = load_jsonl(val_file)
     test_data = load_jsonl(test_file)
 
-    # 1. Train set must only contain filings from 2019 to 2023
-    for r in train_data:
-        date_str = r["filing_date"]
-        year = int(date_str.split("-")[0])
-        assert year <= 2023, f"Data leakage in train set: record {r['id']} has filing year {year} > 2023"
+    # 1. Train set must strictly precede or match validation cutoff
+    train_years = [int(r["filing_date"].split("-")[0]) for r in train_data]
+    val_years = [int(r["filing_date"].split("-")[0]) for r in val_data]
+    test_years = [int(r["filing_date"].split("-")[0]) for r in test_data]
 
-    # 2. Validation set must only contain filings from 2024
-    for r in val_data:
-        date_str = r["filing_date"]
-        year = int(date_str.split("-")[0])
-        assert year == 2024, f"Data leakage in val set: record {r['id']} has filing year {year} != 2024"
-
-    # 3. Test set must only contain filings from 2025 to 2026
-    for r in test_data:
-        date_str = r["filing_date"]
-        year = int(date_str.split("-")[0])
-        assert year >= 2025, f"Data leakage in test set: record {r['id']} has filing year {year} < 2025"
+    assert max(train_years) <= min(val_years), (
+        f"Temporal leakage: max train year {max(train_years)} > min val year {min(val_years)}"
+    )
+    assert max(val_years) < min(test_years), (
+        f"Temporal leakage: max val year {max(val_years)} >= min test year {min(test_years)}"
+    )
 
 
 def test_disjoint_accession_numbers():

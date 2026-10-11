@@ -1,10 +1,13 @@
 {
-  "status": "VERIFIED_SEEDS_SEPARATED",
+  "status": "HISTORICAL_SEEDS_CLEANSED",
   "data_origin": "MANUALLY_AUTHORED",
-  "annotation_status": "HUMAN_REVIEWED",
-  "total_gold": 20,
-  "train_count": 12,
+  "annotation_status": "PENDING_REVIEW",
+  "total_gold": 15,
+  "train_count": 9,
   "val_count": 3,
-  "test_count": 5,
-  "provenance_note": "Synthetic template samples separated into data/synthetic/synthetic_samples.jsonl"
+  "test_count": 3,
+  "gold_sha256": "1d7d535c1b2796ae9d1c51fe95a8d4d4a56390fdc025615365cf520541027b13",
+  "quarantined_records": 5,
+  "quarantine_location": "data/quarantine/quarantined_records.jsonl",
+  "notes": "5 synthetic future-dated (2025-2026) records quarantined. Retained 15 historical SEC disclosures partitioned chronologically without filing cross-leakage."
 }
