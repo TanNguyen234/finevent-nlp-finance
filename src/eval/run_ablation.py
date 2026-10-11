@@ -1,9 +1,10 @@
 """Ablation study runner for FinEvent.
 
-Evaluates:
+Executes genuine independent ablated pipelines:
 - Full Pipeline (Identity Matching + Unit Normalization)
-- Ablation A1: Without Guidance Identity matching (allows mismatched periods/accounting bases)
-- Ablation A2: Without Unit Normalization (compares numbers across mismatched units)
+- Ablation A1: Without Guidance Identity matching (naive metric-only matching, ignores period/accounting basis)
+- Ablation A2: Without Unit Normalization (evaluates identity but omits dimensional unit validation)
+
 Saves verified experiment artifacts to reports/ablation_results.json.
 """
 
@@ -13,22 +14,56 @@ import json
 import logging
 import pathlib
 import sys
+from typing import Any, Dict, Tuple
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.extract.change import detect_guidance_change, validate_guidance_identity_compatibility
-from src.extract.arguments import convert_value_to_base_currency
+from src.extract.change import validate_guidance_identity_compatibility
 
 REPORTS_DIR = pathlib.Path("reports")
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def ablated_compare_a1_no_identity(a: Dict[str, Any], b: Dict[str, Any]) -> Tuple[bool, str]:
+    """Ablated variant A1: Naive matcher that only compares metric names, ignoring period, basis, and event type."""
+    m_a = (a.get("metric") or "").lower()
+    m_b = (b.get("metric") or "").lower()
+    if m_a and m_b and m_a == m_b and m_a != "unknown":
+        return True, "NAIVE_METRIC_MATCH"
+    return False, "METRIC_MISMATCH"
+
+
+def ablated_compare_a2_no_units(a: Dict[str, Any], b: Dict[str, Any]) -> Tuple[bool, str]:
+    """Ablated variant A2: Checks CIK, period, and basis, but completely omits unit dimensional compatibility."""
+    cik_a = a.get("cik")
+    cik_b = b.get("cik")
+    if cik_a and cik_b and cik_a != cik_b:
+        return False, "CIK_MISMATCH"
+
+    m_a = (a.get("metric") or "").lower()
+    m_b = (b.get("metric") or "").lower()
+    if not m_a or not m_b or m_a != m_b:
+        return False, "METRIC_MISMATCH"
+
+    p_a = a.get("target_fiscal_period") or a.get("fiscal_period")
+    p_b = b.get("target_fiscal_period") or b.get("fiscal_period")
+    if p_a and p_b and p_a != "UNKNOWN" and p_b != "UNKNOWN" and p_a != p_b:
+        return False, "PERIOD_MISMATCH"
+
+    basis_a = a.get("accounting_basis", "UNKNOWN")
+    basis_b = b.get("accounting_basis", "UNKNOWN")
+    if basis_a in {"GAAP", "NON_GAAP"} and basis_b in {"GAAP", "NON_GAAP"} and basis_a != basis_b:
+        return False, "BASIS_MISMATCH"
+
+    # UNIT COMPATIBILITY CHECK IS INTENTIONALLY OMITTED HERE
+    return True, "COMPATIBLE_WITHOUT_UNIT_CHECK"
+
+
 def run_ablation_experiments() -> dict:
-    # Test cases representing critical operational boundaries
     test_cases = [
-        # Case 1: Compatible pair with same period
+        # Case 1: Truly compatible pair with identical period and basis
         {
             "id": "case_1",
             "prior": {
@@ -83,46 +118,70 @@ def run_ablation_experiments() -> dict:
     ]
 
     total = len(test_cases)
-    
-    # 1. Full Pipeline
+
+    # 1. Full Pipeline Execution
+    full_preds = []
     full_correct = 0
+    full_fp = 0
     for tc in test_cases:
-        is_comp, _ = validate_guidance_identity_compatibility(tc["prior"], tc["current"])
+        is_comp, reason = validate_guidance_identity_compatibility(tc["prior"], tc["current"])
+        full_preds.append({"id": tc["id"], "predicted": is_comp, "expected": tc["expected_compatible"], "reason": reason})
         if is_comp == tc["expected_compatible"]:
             full_correct += 1
-    acc_full = full_correct / total
+        elif is_comp and not tc["expected_compatible"]:
+            full_fp += 1
 
-    # 2. Ablation A1: Without Identity Constraints (blind comparison)
-    # Assumes every pair is comparable, causing false positives on Cases 2, 3, 4
-    a1_correct = 1 / total  # Only Case 1 happens to be valid
-    
-    # 3. Ablation A2: Without Unit Normalization
-    # Case 4 collapses into false numerical subtraction (e.g. 90.0 - 45.0 = 45.0 without dimensional check)
-    a2_correct = 2 / total
+    # 2. Ablation A1 Execution (No Identity Matching)
+    a1_preds = []
+    a1_correct = 0
+    a1_fp = 0
+    for tc in test_cases:
+        is_comp, reason = ablated_compare_a1_no_identity(tc["prior"], tc["current"])
+        a1_preds.append({"id": tc["id"], "predicted": is_comp, "expected": tc["expected_compatible"], "reason": reason})
+        if is_comp == tc["expected_compatible"]:
+            a1_correct += 1
+        elif is_comp and not tc["expected_compatible"]:
+            a1_fp += 1
+
+    # 3. Ablation A2 Execution (No Unit Validation)
+    a2_preds = []
+    a2_correct = 0
+    a2_fp = 0
+    for tc in test_cases:
+        is_comp, reason = ablated_compare_a2_no_units(tc["prior"], tc["current"])
+        a2_preds.append({"id": tc["id"], "predicted": is_comp, "expected": tc["expected_compatible"], "reason": reason})
+        if is_comp == tc["expected_compatible"]:
+            a2_correct += 1
+        elif is_comp and not tc["expected_compatible"]:
+            a2_fp += 1
 
     results = {
-        "experiment": "Guidance Identity & Unit Normalization Ablation",
+        "experiment": "Guidance Identity & Unit Normalization Dynamic Ablation",
         "total_boundary_test_cases": total,
         "configurations": {
             "Full_Pipeline": {
                 "identity_validation": True,
                 "unit_normalization": True,
-                "accuracy": round(acc_full, 4),
-                "false_positive_revisions": 0,
+                "correct_count": full_correct,
+                "accuracy": round(full_correct / total, 4),
+                "false_positive_revisions": full_fp,
+                "predictions": full_preds,
             },
             "A1_No_Identity_Matching": {
                 "identity_validation": False,
                 "unit_normalization": True,
-                "accuracy": round(a1_correct, 4),
-                "false_positive_revisions": 3,
-                "impact": "Collapses multi-period revisions across quarters and compares GAAP against Non-GAAP",
+                "correct_count": a1_correct,
+                "accuracy": round(a1_correct / total, 4),
+                "false_positive_revisions": a1_fp,
+                "predictions": a1_preds,
             },
             "A2_No_Unit_Validation": {
                 "identity_validation": True,
                 "unit_normalization": False,
-                "accuracy": round(a2_correct, 4),
-                "false_positive_revisions": 1,
-                "impact": "Attempts cross-dimensional math between percentage ratios and dollar revenue",
+                "correct_count": a2_correct,
+                "accuracy": round(a2_correct / total, 4),
+                "false_positive_revisions": a2_fp,
+                "predictions": a2_preds,
             },
         },
     }
@@ -130,7 +189,7 @@ def run_ablation_experiments() -> dict:
     with open(REPORTS_DIR / "ablation_results.json", "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
 
-    print("Ablation study completed. Results saved to reports/ablation_results.json")
+    print("Dynamic ablation study completed. Results saved to reports/ablation_results.json")
     return results
 
 

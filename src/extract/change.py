@@ -66,13 +66,44 @@ def validate_guidance_identity_compatibility(
     if not are_units_compatible(u_a, u_b):
         return False, f"Incompatible units: {u_a} vs {u_b}"
 
-    # 6. Event type compatibility: do not compare Actual results directly to Guidance as a revision
+    # 6. Reporting scope compatibility (e.g. consolidated vs segment)
+    scope_a = disclosure_a.get("reporting_scope", "CONSOLIDATED")
+    scope_b = disclosure_b.get("reporting_scope", "CONSOLIDATED")
+    if scope_a != scope_b and scope_a != "UNKNOWN" and scope_b != "UNKNOWN":
+        return False, f"Reporting scope mismatch: {scope_a} vs {scope_b}"
+
+    # 7. Chronological ordering
+    f_date_a = disclosure_a.get("filing_date")
+    f_date_b = disclosure_b.get("filing_date")
+    if f_date_a and f_date_b and f_date_a > f_date_b:
+        return False, f"Chronological inversion: prior {f_date_a} is after current {f_date_b}"
+
+    # Event type compatibility: do not compare Actual results directly to Guidance as a revision
     type_a = disclosure_a.get("event_type")
     type_b = disclosure_b.get("event_type")
     if type_a == "EARNINGS_RESULT" and type_b in {"GUIDANCE_REVISION", "GUIDANCE_ISSUANCE"}:
         return False, "Cannot compare backward-looking EARNINGS_RESULT with forward-looking GUIDANCE"
 
     return True, "COMPATIBLE"
+
+
+def calculate_dynamic_confidence(
+    old_present: bool,
+    new_present: bool,
+    evidence: str,
+    is_pairwise: bool,
+) -> float:
+    """Calculate evidence-grounded confidence dynamically rather than returning fixed constants."""
+    score = 0.50
+    if old_present and new_present:
+        score += 0.30
+    elif new_present:
+        score += 0.15
+    if evidence and len(evidence.strip()) > 15:
+        score += 0.15
+    if is_pairwise:
+        score += 0.05
+    return min(round(score, 2), 1.0)
 
 
 def compute_revision_direction(delta_mid: Optional[float]) -> str:
@@ -186,7 +217,12 @@ def detect_guidance_change(
         "source_url": source_url,
         "filing_date_prior": f_date_a,
         "filing_date_current": f_date_b,
-        "confidence": 0.95 if delta_mid is not None else 0.70,
+        "confidence": calculate_dynamic_confidence(
+            old_present=(old_low is not None or old_high is not None),
+            new_present=(new_low is not None or new_high is not None),
+            evidence=evidence,
+            is_pairwise=(disclosure_b is not None),
+        ),
     }
 
 
