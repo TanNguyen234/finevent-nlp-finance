@@ -65,15 +65,17 @@ Given a company CIK and historical disclosure filings, FinEvent determines:
 
 ## Dataset Architecture and Integrity
 
-To eliminate synthetic contamination, FinEvent enforces a strict separation between synthetic templates and authentic SEC filings:
+To eliminate synthetic contamination and ensure research-grade integrity, FinEvent enforces strict separation between data subsets:
 
-- `data/labels/`: Authentic SEC Gold Benchmark (20 human-reviewed records from Form 8-K filings of Apple, Microsoft, NVIDIA, AMD, JPMorgan with 0% character-offset error). Partitioned via Group-Aware Temporal Split:
-  - `train.jsonl`: 12 samples (2019-2023)
-  - `val.jsonl`: 3 samples (2024)
-  - `test.jsonl`: 5 samples (2025-2026)
-- `data/synthetic/`: Isolated synthetic template samples (200 records) reserved exclusively for parser sanity checks and unit tests.
-- `data/annotations/`: Active annotation queue (`annotation_queue.jsonl`) and guidelines (`annotation_guidelines.md`) for continuous human review.
-- `data/processed/`: Operational database (`operational_events.jsonl`) serving the FastAPI endpoints, preventing benchmark contamination in production serving.
+- `data/labels/`: Audited Authentic SEC Historical Benchmark (15 records from historical Form 8-K filings of Apple Inc. and Microsoft Corporation between 2019 and 2024 with 0% character-offset error). Partitioned via Chronological Temporal Split:
+  - `train.jsonl`: 9 samples (2019–2020)
+  - `val.jsonl`: 3 samples (2021)
+  - `test.jsonl`: 3 samples (2024 held-out)
+  - `split_manifest.json`: Content hash and provenance metadata (`gold_sha256: 1d7d535c1b...`).
+- `data/quarantine/`: Quarantined records (`quarantined_records.jsonl`) isolating 5 historical records identified with fabricated future dates (2025–2026) and ungrounded consensus claims during the forensic audit.
+- `data/synthetic/`: Isolated synthetic template samples (200 records) reserved exclusively for parser sanity checks and local tests.
+- `data/annotations/`: Active annotation queue (`annotation_queue.jsonl`) and guidelines (`annotation_guidelines.md`) for continuous review.
+- `data/processed/`: Operational database (`operational_events.jsonl`) serving FastAPI endpoints, preventing benchmark contamination in production serving.
 
 ---
 
@@ -84,43 +86,43 @@ A common pitfall in financial NLP is treating ordinary quarter-over-quarter reve
 $$\text{Identity} = (\text{CIK}, \text{Metric}, \text{TargetFiscalPeriod}, \text{AccountingBasis}, \text{Currency}, \text{Unit}, \text{Scope})$$
 
 ### Compatibility Rules
-- Different target periods (e.g. Q1 2025 vs Q2 2025) are rejected with `INCOMPATIBLE_PERIOD`.
-- Actual earnings results paired with forward-looking guidance are rejected with `EARNINGS_RESULT_NOT_REVISION`.
-- Accounting basis mismatches (GAAP vs Non-GAAP) are rejected with `ACCOUNTING_BASIS_MISMATCH`.
-- Units and currencies are normalized (`USD_B` = 1,000 * `USD_M`), but incompatible dimensions (`PERCENT` vs `USD_B`) are rejected with `INCOMPATIBLE_UNIT`.
+- Different target periods (e.g. Q1 vs Q2) are rejected with `Target fiscal period mismatch`.
+- Actual earnings results paired with forward-looking guidance are rejected with `Cannot compare backward-looking EARNINGS_RESULT with forward-looking GUIDANCE`.
+- Accounting basis mismatches (GAAP vs Non-GAAP) are rejected with `Accounting basis mismatch`.
+- Chronological inversions (prior date occurring after current date) are rejected with `Chronological inversion`.
+- Units and currencies are normalized (`USD_B` = 1,000 * `USD_M`), but incompatible dimensions (`PERCENT` vs `USD_B`) are rejected with `Incompatible units`.
 - Explicit null handling (`is not None`) preserves zero numeric values ($0.00 diluted EPS) from being discarded.
 
 ### Ablation Findings
-In controlled experiments across cross-domain disclosure pairs (`reports/ablation_results.json`):
-- Naive metric matching: 3 false positive revisions (100% false alarm rate).
-- Strict Guidance Identity matching: 0 false positive revisions (100% precision).
+In dynamic execution across cross-domain disclosure pairs (`reports/ablation_results.json`):
+- Without Guidance Identity (A1): 3 false positive revisions (100% false alarm rate).
+- Strict Guidance Identity matching (A0): 0 false positive revisions (100% precision).
 
 ---
 
 ## Experimental Benchmarks
 
-Models were evaluated on group-aware temporal splits of authentic SEC Form 8-K disclosures and cloud GPU training runs.
+### 1. Authentic SEC Held-Out Benchmark (2024 Held-Out Test Set)
 
-| Experiment ID | Architecture | Execution Platform | Pre-Val F1 | Post-Val F1 | Test Macro-F1 | Test Accuracy | Status |
-| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :--- |
-| **E0_REAL_SEC** | Keyword / Regex Baseline | Local CPU | — | — | **0.5000** | **0.6000** | Verified Local |
-| **E1_REAL_SEC** | TF-IDF (1,2-gram) + LogReg | Local CPU | — | — | **0.5000** | **0.6000** | Verified Local |
-| **E2_A_DEBERTA** | `microsoft/deberta-v3-small` | Kaggle GPU Tesla T4 | 0.0952 | 0.3588 | **0.3677** | **0.5179** | Verified Cloud GPU |
-| **E2_B_FINBERT** | `ProsusAI/finbert` | Kaggle GPU Tesla T4 | 0.3221 | 1.0000 | **1.0000** | **1.0000** | Verified Cloud GPU |
+Evaluated on the cleansed historical test set (`data/labels/test.jsonl`, 3 held-out 2024 filings across Apple and Microsoft):
 
-### Per-Class Test Performance Comparison
+| Experiment ID | Architecture | Execution Platform | Test Macro-F1 | Test Weighted-F1 | Accuracy | Status |
+| :--- | :--- | :--- | :---: | :---: | :---: | :--- |
+| **E0_REAL_SEC** | Keyword Rule Baseline | Local CPU | 0.5000 | 0.6667 | 0.6667 | Verified Local |
+| **E1_REAL_SEC** | TF-IDF (1,2-gram) + LogReg | Local CPU | 0.7500 | 1.0000 | 1.0000 | Verified Local |
 
-| Class Name | Support | E1 TF-IDF F1 | E2-A DeBERTa F1 | E2-B FinBERT F1 | Analysis |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| **EARNINGS_RESULT** | 15 | 0.6667 | **0.9286** | **1.0000** | Dense financial tables identified with high precision. |
-| **GUIDANCE_REVISION** | 16 | 0.6667 | **0.5424** | **1.0000** | FinBERT captures complex contextual revision tokens. |
-| **MANAGEMENT_CHANGE** | 13 | 1.0000 | 0.0000 | **1.0000** | Executive appointments transfer cleanly via FinBERT embeddings. |
-| **OTHER** | 12 | 0.0000 | 0.0000 | **1.0000** | Negative disclosures successfully separated. |
+*Honest Assessment*: A 3-sample held-out split is an exploratory sanity check on authentic SEC filings. Scaling the verified benchmark to >=200 human-annotated filings is required for robust generalization claims.
 
-### Research Takeaway
-Evaluating TF-IDF on synthetic templates produces a deceptive 1.0000 Macro-F1, which drops to 0.5000 on genuine SEC disclosures. While general-domain DeBERTa-v3 struggles with low-support classes, domain-pretrained `ProsusAI/finbert` converges rapidly on the financial ontology, reaching 1.0000 Macro-F1 within 3 training epochs on Tesla T4.
+### 2. Historical Kaggle Cloud Synthetic Sanity Run
 
-All cloud artifacts (checkpoints, weights, configs, metrics) are downloaded and stored locally under `reports/kaggle_runs/kaggle/output/`.
+Forensic audit established that historical Kaggle kernel `foxy0505/finevent-nlp-training-gpu` evaluated on the legacy 290-record synthetic dataset (56-sample test set) fetched from GitHub raw commit `662aabe`:
+
+| Experiment ID | Architecture | Hardware | Split Strategy | Pre-Val F1 | Post-Val F1 | Test Macro-F1 | Status & Audit Finding |
+| :--- | :--- | :--- | :--- | :---: | :---: | :---: | :--- |
+| **E2_A_DEBERTA** | `microsoft/deberta-v3-small` | Tesla T4 GPU | Legacy Synthetic Split | 0.0952 | 0.3588 | 0.3677 | Historical Synthetic Sanity |
+| **E2_B_FINBERT** | `ProsusAI/finbert` | Tesla T4 GPU | Legacy Synthetic Split | 0.3221 | 1.0000 | 1.0000 | Historical Synthetic Sanity (Memorization) |
+
+*Audit Finding*: FinBERT's 1.0000 F1 on the legacy test set represents template memorization on synthetic permutations, not genuine generalization on noisy SEC filings. Model comparisons across datasets with different sample counts or origins have been completely separated.
 
 ---
 
@@ -141,38 +143,15 @@ python -m compileall src app kaggle
 
 ### 3. Ingestion and Baseline Execution
 ```powershell
-# Rebuild datasets and verify offsets
-python -m src.ingest.build_dataset
+# Run E0 and E1 baselines on cleansed real data
+python -m src.train.baseline
 
-# Run E0 and E1 baselines on real data
-python -m src.train.baseline --dataset real
-
-# Execute Financial Guidance Identity ablation
+# Execute dynamic Financial Guidance Identity ablation
 python -m src.eval.run_ablation
 ```
 
-### 4. Kaggle Cloud GPU Training
-```powershell
-# Verify script AST syntax
-python kaggle/preflight_check.py
-
-# Push training notebook to Kaggle GPU
-kaggle kernels push -p ./kaggle
-
-# Retrieve training output artifacts
-kaggle kernels output foxy0505/finevent-nlp-training-gpu -p reports/kaggle_runs
-```
-
-### 5. Launch Application Services
-```powershell
-# Start FastAPI backend service
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-
-# Start React terminal interface
-cd frontend
-npm install
-npm run dev
-```
+### 4. Cloud Training & Rule 1 Compliance
+In accordance with Rule 1 ("Cloud-First Execution: Never download heavy model checkpoints locally"), heavy neural weights (`*.safetensors`, `*.pt`) remain in cloud storage / Kaggle kernel outputs. Only lightweight evaluation manifests, logs, and metrics reside locally.
 
 ---
 
@@ -181,35 +160,26 @@ npm run dev
 ```
 finevent-nlp-finance/
 ├── app/                  # FastAPI backend application
-│   ├── main.py           # API route handlers and validation
-│   ├── schemas.py        # Pydantic v2 domain schemas
-│   └── service.py        # Event loading and model serving logic
 ├── data/
 │   ├── annotations/      # Annotation guidelines and review queue
-│   ├── labels/           # Authentic SEC gold dataset (train, val, test)
+│   ├── labels/           # Audited historical SEC gold dataset (train, val, test)
 │   ├── processed/        # Operational database for API serving
+│   ├── quarantine/       # Quarantined non-grounded / future-dated records
 │   └── synthetic/        # Isolated synthetic template datasets
 ├── frontend/             # React dashboard frontend
 ├── kaggle/               # Cloud GPU training pipeline and metadata
-├── reports/              # Experiment manifests, logs, and benchmark tables
-│   ├── kaggle_runs/      # Downloaded cloud GPU weights and checkpoints
-│   ├── errors.jsonl      # Real error analysis records
-│   └── results.md        # Comprehensive research evaluation report
+├── reports/              # Experiment manifests, logs, forensic audits
+│   ├── gold_provenance_audit.md   # Record-by-record gold label audit
+│   ├── kaggle_forensic_audit.md   # Cloud GPU kernel forensic verification
+│   ├── remediation_checklist.md  # Status of all P0 and P1 audit findings
+│   └── results.md                 # Partitioned research benchmark report
 ├── src/
-│   ├── eval/             # Evaluation metrics and ablation runners
-│   ├── extract/          # Segmenters, argument extraction, change detection
+│   ├── eval/             # Evaluation metrics and dynamic ablation runners
+│   ├── extract/          # Segmenters, argument extraction, 7-tuple change logic
 │   ├── ingest/           # SEC EDGAR crawlers, submissions, and parsers
 │   └── train/            # Local E0/E1 baseline training pipelines
-└── tests/                # 33 unit and end-to-end integration tests
+└── tests/                # 33 verified unit and integration tests
 ```
-
----
-
-## Limitations
-
-1. **Current Sample Scale**: The human-reviewed gold benchmark currently comprises 20 verified SEC filings. The pipeline provides active annotation queues (`annotation_queue.jsonl`) to scale up to 200+ samples.
-2. **SEC Rate Limiting**: Production EDGAR crawling requires a valid corporate or academic email in `SEC_EDGAR_USER_AGENT` to comply with fair-access bandwidth policies.
-3. **Serving Latency**: Full-precision FinBERT inference runs at ~45ms per paragraph on CPU; production low-latency serving benefits from ONNX Runtime or INT8 quantization.
 
 ---
 
