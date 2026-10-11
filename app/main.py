@@ -31,15 +31,8 @@ app.add_middleware(
 
 @app.get("/health", tags=["System"])
 def health_check() -> Dict[str, Any]:
-    """Health check endpoint confirming API availability, model status, and dataset mode."""
-    return {
-        "status": "healthy",
-        "service": "FinEvent API",
-        "active_model": "E1_TFIDF_LogReg" if service.model is not None else "E0_Rule_Heuristic",
-        "model_loaded": service.model is not None,
-        "dataset_mode": service.dataset_mode,
-        "total_events_indexed": len(service.events),
-    }
+    """Health check endpoint confirming API availability, configured backend, and cloud weights status."""
+    return service.get_service_status()
 
 
 @app.get("/companies", tags=["Companies"])

@@ -47,7 +47,7 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": "USD_B",
         "evidence": "Apple expects revenue between $55.0 billion and $59.0 billion",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "PENDING_REVIEW",
     },
     {
         "cik": "0000320193",
@@ -68,7 +68,7 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": "USD_B",
         "evidence": "Apple posted quarterly revenue of $58.0 billion",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "PENDING_REVIEW",
     },
     {
         "cik": "0000320193",
@@ -89,7 +89,7 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": None,
         "evidence": "Jony Ive, Chief Design Officer, will depart the company later this year",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "PENDING_REVIEW",
     },
     {
         "cik": "0000789019",
@@ -110,7 +110,7 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": "USD_B",
         "evidence": "Microsoft announced revenue of $33.7 billion for the fourth quarter",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "PENDING_REVIEW",
     },
     {
         "cik": "0000789019",
@@ -131,7 +131,7 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": "PERCENT",
         "evidence": "Microsoft expects commercial cloud gross margin to increase by approximately 4 percentage points to 67.0%",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "PENDING_REVIEW",
     },
     {
         "cik": "0000789019",
@@ -152,7 +152,7 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": "USD",
         "evidence": "declared a quarterly dividend of $0.51 per share",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "PENDING_REVIEW",
     },
     # 2020-2023
     {
@@ -174,7 +174,7 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": "USD_B",
         "evidence": "revenue between $63.0 billion and $67.0 billion",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "PENDING_REVIEW",
     },
     {
         "cik": "0000320193",
@@ -195,7 +195,7 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": "USD_B",
         "evidence": "does not expect to meet the quarterly revenue guidance previously issued of $63.0 billion to $67.0 billion",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "PENDING_REVIEW",
     },
     {
         "cik": "0000789019",
@@ -216,7 +216,7 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": None,
         "evidence": "Bill Gates stepped down from the company's Board of Directors",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "PENDING_REVIEW",
     },
     {
         "cik": "0000789019",
@@ -237,7 +237,7 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": "USD_B",
         "evidence": "Microsoft forecasts total revenue between $40.75 billion and $41.35 billion",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "PENDING_REVIEW",
     },
     {
         "cik": "0000320193",
@@ -258,7 +258,7 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": "USD_B",
         "evidence": "record revenue of $89.6 billion, up 54 percent year over year",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "PENDING_REVIEW",
     },
     {
         "cik": "0000789019",
@@ -279,7 +279,7 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": None,
         "evidence": "unanimously elected Satya Nadella to the role of Board Chair",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "PENDING_REVIEW",
     },
     # 2024: VAL
     {
@@ -301,7 +301,7 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": "USD_B",
         "evidence": "quarterly revenue of $119.6 billion, up 2 percent year over year",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "PENDING_REVIEW",
     },
     {
         "cik": "0000789019",
@@ -322,7 +322,7 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": "USD_B",
         "evidence": "revenue between $19.9 billion and $20.2 billion",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "PENDING_REVIEW",
     },
     {
         "cik": "0000320193",
@@ -343,9 +343,12 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": None,
         "evidence": "Luca Maestri will transition from the Chief Financial Officer role on January 1, 2025, and Kevan Parekh will become CFO",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "PENDING_REVIEW",
     },
-    # 2025-2026: TEST
+]
+
+# Quarantined records: identified with unverified accession mappings, non-grounded consensus, or future dates
+QUARANTINED_SEEDS: List[Dict[str, Any]] = [
     {
         "cik": "0000320193",
         "company_name": "Apple Inc.",
@@ -365,7 +368,8 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": "PERCENT",
         "evidence": "gross margin to reach between 46.5 percent and 47.5 percent",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "QUARANTINED",
+        "quarantine_reason": "Synthetic accession number 0000320193-25-000008 not verified on SEC EDGAR",
     },
     {
         "cik": "0000789019",
@@ -386,7 +390,8 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": "USD_B",
         "evidence": "capital expenditure forecast to between $58.0 billion and $62.0 billion",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "QUARANTINED",
+        "quarantine_reason": "Synthetic accession number 0000789019-25-000032 not verified on SEC EDGAR",
     },
     {
         "cik": "0000789019",
@@ -407,7 +412,8 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": "USD_B",
         "evidence": "fourth-quarter revenue of $64.7 billion, an increase of 15%",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "QUARANTINED",
+        "quarantine_reason": "Synthetic accession number 0000789019-25-000055 not verified on SEC EDGAR",
     },
     {
         "cik": "0000320193",
@@ -428,7 +434,8 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": "USD_B",
         "evidence": "all-time record revenue of $124.3 billion for its fiscal 2026 first quarter",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "QUARANTINED",
+        "quarantine_reason": "Synthetic accession number 0000320193-26-000005 not verified on SEC EDGAR",
     },
     {
         "cik": "0000789019",
@@ -449,7 +456,8 @@ RAW_SEEDS: List[Dict[str, Any]] = [
         "unit": "USD_B",
         "evidence": "raises total revenue guidance to $71.5 billion - $72.5 billion",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "QUARANTINED",
+        "quarantine_reason": "Synthetic accession number 0000789019-26-000022; consensus mislabeled as revision",
     },
 ]
 
@@ -605,6 +613,9 @@ def expand_curated_dataset(seeds: List[Dict[str, Any]], target_count: int = 200)
 
 def build_and_separate_datasets():
     """Build datasets with strict isolation between synthetic templates and verified seeds."""
+    DATA_QUARANTINE_DIR = pathlib.Path("data/quarantine")
+    DATA_QUARANTINE_DIR.mkdir(parents=True, exist_ok=True)
+
     clean_seeds = validate_and_compute_exact_offsets(RAW_SEEDS)
 
     # 1. Save verified seeds to gold.jsonl
@@ -612,10 +623,15 @@ def build_and_separate_datasets():
         for r in clean_seeds:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-    # 2. Create temporal splits for verified seeds
-    train_seeds = [r for r in clean_seeds if int(r["filing_date"].split("-")[0]) <= 2023]
-    val_seeds = [r for r in clean_seeds if int(r["filing_date"].split("-")[0]) == 2024]
-    test_seeds = [r for r in clean_seeds if int(r["filing_date"].split("-")[0]) >= 2025]
+    # 2. Save quarantined seeds to quarantined_records.jsonl
+    with open(DATA_QUARANTINE_DIR / "quarantined_records.jsonl", "w", encoding="utf-8") as f:
+        for r in QUARANTINED_SEEDS:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+    # 3. Create temporal splits for verified seeds (strict chronological ordering)
+    train_seeds = [r for r in clean_seeds if int(r["filing_date"].split("-")[0]) <= 2020]
+    val_seeds = [r for r in clean_seeds if int(r["filing_date"].split("-")[0]) == 2021]
+    test_seeds = [r for r in clean_seeds if int(r["filing_date"].split("-")[0]) >= 2024]
 
     with open(DATA_LABELS_DIR / "train.jsonl", "w", encoding="utf-8") as f:
         for r in train_seeds:
@@ -629,15 +645,21 @@ def build_and_separate_datasets():
         for r in test_seeds:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
+    import hashlib
+    gold_sha = hashlib.sha256(open(DATA_LABELS_DIR / "gold.jsonl", "rb").read()).hexdigest()
+
     manifest = {
-        "status": "VERIFIED_SEEDS_SEPARATED",
+        "status": "HISTORICAL_SEEDS_CLEANSED",
         "data_origin": "MANUALLY_AUTHORED",
-        "annotation_status": "HUMAN_REVIEWED",
+        "annotation_status": "PENDING_REVIEW",
         "total_gold": len(clean_seeds),
         "train_count": len(train_seeds),
         "val_count": len(val_seeds),
         "test_count": len(test_seeds),
-        "provenance_note": "Synthetic template samples separated into data/synthetic/synthetic_samples.jsonl",
+        "gold_sha256": gold_sha,
+        "quarantined_records": len(QUARANTINED_SEEDS),
+        "quarantine_location": "data/quarantine/quarantined_records.jsonl",
+        "notes": "5 ungrounded/synthetic accession records quarantined. Retained 15 historical SEC disclosures partitioned chronologically without filing cross-leakage.",
     }
     with open(DATA_LABELS_DIR / "split_manifest.json", "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)

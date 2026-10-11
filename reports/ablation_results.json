@@ -1,26 +1,105 @@
 {
-  "experiment": "Guidance Identity & Unit Normalization Ablation",
+  "experiment": "Guidance Identity & Unit Normalization Dynamic Ablation",
   "total_boundary_test_cases": 4,
   "configurations": {
     "Full_Pipeline": {
       "identity_validation": true,
       "unit_normalization": true,
+      "correct_count": 4,
       "accuracy": 1.0,
-      "false_positive_revisions": 0
+      "false_positive_revisions": 0,
+      "predictions": [
+        {
+          "id": "case_1",
+          "predicted": true,
+          "expected": true,
+          "reason": "COMPATIBLE"
+        },
+        {
+          "id": "case_2",
+          "predicted": false,
+          "expected": false,
+          "reason": "Target fiscal period mismatch: 'Q1 2025' vs 'Q2 2025'"
+        },
+        {
+          "id": "case_3",
+          "predicted": false,
+          "expected": false,
+          "reason": "Accounting basis mismatch: GAAP vs NON_GAAP"
+        },
+        {
+          "id": "case_4",
+          "predicted": false,
+          "expected": false,
+          "reason": "Incompatible units: PERCENT vs USD_B"
+        }
+      ]
     },
     "A1_No_Identity_Matching": {
       "identity_validation": false,
       "unit_normalization": true,
+      "correct_count": 1,
       "accuracy": 0.25,
       "false_positive_revisions": 3,
-      "impact": "Collapses multi-period revisions across quarters and compares GAAP against Non-GAAP"
+      "predictions": [
+        {
+          "id": "case_1",
+          "predicted": true,
+          "expected": true,
+          "reason": "NAIVE_METRIC_MATCH"
+        },
+        {
+          "id": "case_2",
+          "predicted": true,
+          "expected": false,
+          "reason": "NAIVE_METRIC_MATCH"
+        },
+        {
+          "id": "case_3",
+          "predicted": true,
+          "expected": false,
+          "reason": "NAIVE_METRIC_MATCH"
+        },
+        {
+          "id": "case_4",
+          "predicted": true,
+          "expected": false,
+          "reason": "NAIVE_METRIC_MATCH"
+        }
+      ]
     },
     "A2_No_Unit_Validation": {
       "identity_validation": true,
       "unit_normalization": false,
-      "accuracy": 0.5,
+      "correct_count": 3,
+      "accuracy": 0.75,
       "false_positive_revisions": 1,
-      "impact": "Attempts cross-dimensional math between percentage ratios and dollar revenue"
+      "predictions": [
+        {
+          "id": "case_1",
+          "predicted": true,
+          "expected": true,
+          "reason": "COMPATIBLE_WITHOUT_UNIT_CHECK"
+        },
+        {
+          "id": "case_2",
+          "predicted": false,
+          "expected": false,
+          "reason": "PERIOD_MISMATCH"
+        },
+        {
+          "id": "case_3",
+          "predicted": false,
+          "expected": false,
+          "reason": "BASIS_MISMATCH"
+        },
+        {
+          "id": "case_4",
+          "predicted": true,
+          "expected": false,
+          "reason": "COMPATIBLE_WITHOUT_UNIT_CHECK"
+        }
+      ]
     }
   }
 }

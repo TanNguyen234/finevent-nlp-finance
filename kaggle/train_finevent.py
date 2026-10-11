@@ -40,7 +40,7 @@ if not OUTPUT_DIR.exists():
     OUTPUT_DIR = pathlib.Path("kaggle/output")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Dataset path resolution
+# Dataset path resolution and SHA-256 fingerprint verification
 DATA_INPUT_DIR = pathlib.Path("/kaggle/input/finevent-benchmark-dataset")
 if not (DATA_INPUT_DIR / "train.jsonl").exists():
     DATA_INPUT_DIR = pathlib.Path("data/labels")
@@ -48,15 +48,40 @@ if not (DATA_INPUT_DIR / "train.jsonl").exists():
     DATA_INPUT_DIR = pathlib.Path("/kaggle/working/data/labels")
     DATA_INPUT_DIR.mkdir(parents=True, exist_ok=True)
     import urllib.request
-    base_url = "https://raw.githubusercontent.com/TanNguyen234/finevent-nlp-finance/main/data/labels"
+    # Pin to immutable commit hash rather than mutable 'main' branch
+    PINNED_COMMIT = "9723dc44f479d46927da50937b83d8b0e77484d0"
+    base_url = f"https://raw.githubusercontent.com/TanNguyen234/finevent-nlp-finance/{PINNED_COMMIT}/data/labels"
     for fname in ["train.jsonl", "val.jsonl", "test.jsonl"]:
         target_f = DATA_INPUT_DIR / fname
         if not target_f.exists():
-            logger.info(f"Downloading {fname} from GitHub raw...")
+            logger.info(f"Downloading {fname} from pinned commit {PINNED_COMMIT[:7]}...")
             try:
                 urllib.request.urlretrieve(f"{base_url}/{fname}", target_f)
             except Exception as e:
                 logger.warning(f"Could not download {fname}: {e}")
+
+EXPECTED_DATASET_HASHES = {
+    "train.jsonl": "0c28dd9ed58e1c6334ccb2b09a2e094b3a6b387b0f2367c2d53e37a29186cdcf",
+    "val.jsonl": "f9a9ce0776dfe20d45216aa2c810d50136d8bfdd9aad021d183fc364a4198aca",
+    "test.jsonl": "e1ff2222acfbd7534537bce0b34b39f9108f9b373fb828b3b482d10be2d19a9f",
+}
+
+
+def verify_dataset_fingerprint(data_dir: pathlib.Path) -> None:
+    """Verify cryptographic SHA-256 hashes of dataset splits to prevent data drift or contamination."""
+    import hashlib
+    for fname, expected_hash in EXPECTED_DATASET_HASHES.items():
+        fpath = data_dir / fname
+        if not fpath.exists():
+            raise FileNotFoundError(f"Missing required dataset split: {fpath}")
+        actual_hash = hashlib.sha256(fpath.read_bytes()).hexdigest()
+        if actual_hash != expected_hash:
+            raise ValueError(
+                f"Dataset integrity violation for {fname}: "
+                f"expected SHA-256 {expected_hash[:12]}..., got {actual_hash[:12]}..."
+            )
+    logger.info("Dataset SHA-256 fingerprint verification PASSED.")
+
 
 CLASSES = ["GUIDANCE_REVISION", "EARNINGS_RESULT", "MANAGEMENT_CHANGE", "OTHER"]
 LABEL2ID = {c: i for i, c in enumerate(CLASSES)}
@@ -64,6 +89,7 @@ ID2LABEL = {i: c for i, c in enumerate(CLASSES)}
 
 
 def load_dataset_splits():
+    verify_dataset_fingerprint(DATA_INPUT_DIR)
     train_df = pd.read_json(DATA_INPUT_DIR / "train.jsonl", lines=True)
     val_df = pd.read_json(DATA_INPUT_DIR / "val.jsonl", lines=True)
     test_df = pd.read_json(DATA_INPUT_DIR / "test.jsonl", lines=True)

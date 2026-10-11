@@ -12,6 +12,7 @@ import json
 import logging
 import pathlib
 from typing import Any, Dict, List, Optional
+import os
 import joblib
 from src.extract.arguments import extract_multi_metric_arguments
 from src.extract.change import compare_company_reporting_periods
@@ -20,23 +21,27 @@ logger = logging.getLogger(__name__)
 
 OPERATIONAL_DATA_PATH = pathlib.Path("data/processed/operational_events.jsonl")
 MODEL_PATH = pathlib.Path("models/baseline_tfidf_logreg.joblib")
+E2_DEBERTA_PATH = pathlib.Path("models/E2_DeBERTa_v3_small")
+E2_FINBERT_PATH = pathlib.Path("models/E2_FinBERT")
 
 
 class FinEventService:
-    """Service handling operational event queries and inference."""
+    """Service handling operational event queries and inference across E1/E2 backends."""
 
     def __init__(self) -> None:
         self.events: List[Dict[str, Any]] = []
         self.events_by_id: Dict[str, Dict[str, Any]] = {}
         self.events_by_cik: Dict[str, List[Dict[str, Any]]] = {}
         self.dataset_mode = "REAL_SEC"
+        self.backend_type = os.environ.get("FINEVENT_MODEL_BACKEND", "E1_TFIDF")
+        self.model_name = "E1_TFIDF_LogReg"
+        self.cloud_weights_status = "CLOUD_STORAGE_ONLY"
         self._load_data()
         self.model = self._load_model()
 
     def _load_data(self) -> None:
         target_path = OPERATIONAL_DATA_PATH
         if not target_path.exists():
-            # Fallback to verified gold seeds
             target_path = pathlib.Path("data/labels/gold.jsonl")
             self.dataset_mode = "VERIFIED_SEEDS"
 
@@ -56,11 +61,46 @@ class FinEventService:
         logger.info("Loaded %d events across %d companies (Mode: %s).", len(self.events), len(self.events_by_cik), self.dataset_mode)
 
     def _load_model(self):
+        # 1. Configured for E2 neural models
+        if self.backend_type in {"E2_DEBERTA", "E2_FINBERT"}:
+            target_neural_path = E2_DEBERTA_PATH if self.backend_type == "E2_DEBERTA" else E2_FINBERT_PATH
+            if target_neural_path.exists():
+                try:
+                    from transformers import pipeline
+                    logger.info("Loading neural model %s from %s", self.backend_type, target_neural_path)
+                    pipe = pipeline("text-classification", model=str(target_neural_path))
+                    self.model_name = self.backend_type
+                    self.cloud_weights_status = "LOADED_LOCAL"
+                    return pipe
+                except Exception as exc:
+                    logger.warning("Failed to load neural weights for %s: %s", self.backend_type, exc)
+            logger.info(
+                "Neural weights for %s not found locally (Rule 1: weights retained on Cloud). Falling back to E1 TF-IDF.",
+                self.backend_type,
+            )
+            self.cloud_weights_status = "CLOUD_STORAGE_ONLY (FALLBACK_TO_E1)"
+
+        # 2. Default E1 TF-IDF Logistic Regression
         if MODEL_PATH.exists():
             logger.info("Loading baseline model from %s", MODEL_PATH)
+            self.model_name = "E1_TFIDF_LogReg"
             return joblib.load(MODEL_PATH)
-        logger.warning("Model file %s not found.", MODEL_PATH)
+
+        logger.warning("No model found. Falling back to E0 Rule Heuristic.")
+        self.model_name = "E0_Rule_Heuristic"
         return None
+
+    def get_service_status(self) -> Dict[str, Any]:
+        return {
+            "status": "healthy",
+            "service": "FinEvent API",
+            "active_model": self.model_name,
+            "configured_backend": self.backend_type,
+            "cloud_weights_status": self.cloud_weights_status,
+            "dataset_mode": self.dataset_mode,
+            "total_events_indexed": len(self.events),
+            "total_loaded_events": len(self.events),
+        }
 
     def list_companies(self) -> List[Dict[str, str]]:
         seen = {}

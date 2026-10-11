@@ -137,3 +137,31 @@ def test_unit_conversion_billion_million():
 def test_incompatible_unit_rejection():
     """Verify percentage gross margin is not comparable to billion dollar revenue."""
     assert not are_units_compatible("PERCENT", "USD_B")
+
+
+def test_cross_unit_delta_computation_normalized():
+    """Verify that comparing $1000M with $1.1B yields a +$0.1B delta, not $1098.9."""
+    prior = {
+        "cik": "0000320193",
+        "metric": "revenue",
+        "target_fiscal_period": "Q1 2025",
+        "new_low": 1000.0,
+        "new_high": 1000.0,
+        "unit": "USD_M",
+        "evidence": "prior guidance 1000 million",
+    }
+    current = {
+        "cik": "0000320193",
+        "metric": "revenue",
+        "target_fiscal_period": "Q1 2025",
+        "new_low": 1.1,
+        "new_high": 1.1,
+        "unit": "USD_B",
+        "evidence": "revised revenue 1.1 billion",
+    }
+    change = detect_guidance_change(prior, current)
+    assert change["direction"] == "UPWARD_REVISION"
+    assert change["delta_low"] == 0.1
+    assert change["delta_mid"] == 0.1
+    assert change["conv_old_low"] == 1.0
+

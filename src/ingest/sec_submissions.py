@@ -106,6 +106,39 @@ class SECSubmissionsClient:
 
         raise RuntimeError(f"Unable to fetch SEC submissions for CIK {cik_clean}")
 
+    def discover_exhibits(self, cik: str, accession: str) -> List[Dict[str, str]]:
+        """Dynamically discover exhibits by parsing the SEC EDGAR filing document index table.
+
+        Does not guess static filenames; resolves actual document hrefs from the filing directory.
+        """
+        import re
+        cik_clean = str(cik).strip().zfill(10)
+        cik_int = int(cik_clean)
+        accession_no_hyphens = accession.replace("-", "")
+        index_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{accession_no_hyphens}/{accession}-index.htm"
+        base_archive_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{accession_no_hyphens}/"
+
+        exhibits: List[Dict[str, str]] = []
+        try:
+            self._wait_rate_limit()
+            resp = requests.get(index_url, headers=self.headers, timeout=self.timeout)
+            if resp.status_code == 200:
+                rows = re.findall(r'<tr[^>]*>(.*?)</tr>', resp.text, re.DOTALL | re.IGNORECASE)
+                for row in rows:
+                    if re.search(r'\b(?:EX-99|EXHIBIT\s+99|99\.1)\b', row, re.IGNORECASE):
+                        m_link = re.search(r'href=["\']([^"\']+\.htm[l]?)["\']', row, re.IGNORECASE)
+                        if m_link:
+                            filename = m_link.group(1).split("/")[-1]
+                            exhibits.append({
+                                "type": "EX-99.1",
+                                "filename": filename,
+                                "url": f"{base_archive_url}{filename}",
+                            })
+        except Exception as exc:
+            logger.warning("Could not dynamically resolve exhibits for %s: %s", accession, exc)
+
+        return exhibits
+
     def get_filings_manifest(
         self,
         cik: str,
@@ -113,7 +146,7 @@ class SECSubmissionsClient:
         limit: Optional[int] = None,
         force_refresh: bool = False,
     ) -> List[Dict[str, Any]]:
-        """Extract a deduplicated list of filing metadata with Exhibit detection."""
+        """Extract a deduplicated list of filing metadata with dynamic Exhibit discovery."""
         cik_clean = str(cik).strip().zfill(10)
         payload = self.fetch_submissions(cik_clean, force_refresh=force_refresh)
         cik_int = int(cik_clean)
@@ -148,11 +181,6 @@ class SECSubmissionsClient:
             accession_no_hyphens = accession.replace("-", "")
             base_archive_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{accession_no_hyphens}/"
             primary_url = f"{base_archive_url}{primary_doc}"
-
-            # Guess Exhibit 99.1 naming patterns common in 8-K filings
-            # e.g., d12345dex991.htm, aapl-ex991.htm, ex99-1.htm
-            exhibit_candidate = f"ex99-1.htm"
-            exhibit_url = f"{base_archive_url}{exhibit_candidate}"
 
             records.append(
                 {
