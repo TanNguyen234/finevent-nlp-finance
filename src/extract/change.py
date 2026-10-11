@@ -34,64 +34,70 @@ def validate_guidance_identity_compatibility(
 ) -> Tuple[bool, str]:
     """Validate that two disclosures can be legally compared under Guidance Identity rules.
 
-    Enforces strict 7-tuple identity matching:
+    Enforces strict fail-closed 7-tuple identity matching:
     (cik, metric, target_fiscal_period, accounting_basis, currency, unit, scope)
     Returns (is_compatible, reason).
     """
-    # 1. Company CIK match (fail-closed if mismatch)
+    # 1. Company CIK match (fail-closed if missing or mismatch)
     cik_a = disclosure_a.get("cik")
     cik_b = disclosure_b.get("cik")
-    if cik_a and cik_b and cik_a != cik_b:
-        return False, f"CIK mismatch: {cik_a} vs {cik_b}"
+    if not cik_a or not cik_b or cik_a != cik_b:
+        return False, f"CIK mismatch or missing: '{cik_a}' vs '{cik_b}'"
 
-    # 2. Metric match (fail-closed if missing or mismatch)
+    # 2. Metric match (fail-closed if missing, unknown, or mismatch)
     metric_a = (disclosure_a.get("metric") or "").lower()
     metric_b = (disclosure_b.get("metric") or "").lower()
     if not metric_a or not metric_b or metric_a == "unknown" or metric_b == "unknown" or metric_a != metric_b:
-        return False, f"Metric mismatch: '{metric_a}' vs '{metric_b}'"
+        return False, f"Metric mismatch or missing: '{metric_a}' vs '{metric_b}'"
 
-    # 3. Target fiscal period match (fail-closed if missing or mismatch)
+    # 3. Target fiscal period match (fail-closed if missing, unknown, or mismatch)
     p_a = disclosure_a.get("target_fiscal_period") or disclosure_a.get("fiscal_period")
     p_b = disclosure_b.get("target_fiscal_period") or disclosure_b.get("fiscal_period")
     if not p_a or not p_b or p_a == "UNKNOWN" or p_b == "UNKNOWN" or p_a != p_b:
-        return False, f"Target fiscal period mismatch: '{p_a}' vs '{p_b}'"
+        return False, f"Target fiscal period mismatch or missing: '{p_a}' vs '{p_b}'"
 
-    # 4. Accounting basis compatibility
-    basis_a = disclosure_a.get("accounting_basis", "UNKNOWN")
-    basis_b = disclosure_b.get("accounting_basis", "UNKNOWN")
-    if basis_a in {"GAAP", "NON_GAAP"} and basis_b in {"GAAP", "NON_GAAP"} and basis_a != basis_b:
-        return False, f"Accounting basis mismatch: {basis_a} vs {basis_b}"
+    # 4. Accounting basis compatibility (fail-closed if unknown, mismatched, or partially missing)
+    basis_a = disclosure_a.get("accounting_basis")
+    basis_b = disclosure_b.get("accounting_basis")
+    if basis_a == "UNKNOWN" or basis_b == "UNKNOWN":
+        return False, f"Accounting basis unverified or unknown: '{basis_a}' vs '{basis_b}'"
+    if (basis_a and not basis_b) or (basis_b and not basis_a) or (basis_a and basis_b and basis_a != basis_b):
+        return False, f"Accounting basis mismatch or unverified: '{basis_a}' vs '{basis_b}'"
 
-    # 5. Currency & Unit compatibility
-    curr_a = disclosure_a.get("currency", "USD")
-    curr_b = disclosure_b.get("currency", "USD")
-    if curr_a and curr_b and curr_a != "UNKNOWN" and curr_b != "UNKNOWN" and curr_a != curr_b:
-        return False, f"Currency mismatch: {curr_a} vs {curr_b}"
+    # 5. Currency & Unit compatibility (fail-closed: do not assume USD if missing or unknown)
+    curr_a = disclosure_a.get("currency")
+    curr_b = disclosure_b.get("currency")
+    if curr_a == "UNKNOWN" or curr_b == "UNKNOWN":
+        return False, f"Currency unverified or unknown: '{curr_a}' vs '{curr_b}'"
+    if (curr_a and not curr_b) or (curr_b and not curr_a) or (curr_a and curr_b and curr_a != curr_b):
+        return False, f"Currency mismatch or unverified: '{curr_a}' vs '{curr_b}'"
 
-    u_a = disclosure_a.get("unit", "UNKNOWN")
-    u_b = disclosure_b.get("unit", "UNKNOWN")
-    if not are_units_compatible(u_a, u_b):
-        return False, f"Incompatible units: {u_a} vs {u_b}"
+    u_a = disclosure_a.get("unit")
+    u_b = disclosure_b.get("unit")
+    if not u_a or not u_b or u_a == "UNKNOWN" or u_b == "UNKNOWN" or not are_units_compatible(u_a, u_b):
+        return False, f"Incompatible or missing units: '{u_a}' vs '{u_b}'"
 
-    # 6. Reporting scope compatibility (e.g. consolidated vs segment)
-    scope_a = disclosure_a.get("reporting_scope", "CONSOLIDATED")
-    scope_b = disclosure_b.get("reporting_scope", "CONSOLIDATED")
-    if scope_a != scope_b and scope_a != "UNKNOWN" and scope_b != "UNKNOWN":
-        return False, f"Reporting scope mismatch: {scope_a} vs {scope_b}"
+    # 6. Reporting scope compatibility (fail-closed: do not assume CONSOLIDATED if missing or unknown)
+    scope_a = disclosure_a.get("reporting_scope")
+    scope_b = disclosure_b.get("reporting_scope")
+    if scope_a == "UNKNOWN" or scope_b == "UNKNOWN":
+        return False, f"Reporting scope unverified or unknown: '{scope_a}' vs '{scope_b}'"
+    if (scope_a and not scope_b) or (scope_b and not scope_a) or (scope_a and scope_b and scope_a != scope_b):
+        return False, f"Reporting scope mismatch or unverified: '{scope_a}' vs '{scope_b}'"
 
-    # 7. Chronological ordering
+    # 7. Chronological ordering (prior must not be filed after current)
     f_date_a = disclosure_a.get("filing_date")
     f_date_b = disclosure_b.get("filing_date")
     if f_date_a and f_date_b and f_date_a > f_date_b:
-        return False, f"Chronological inversion: prior {f_date_a} is after current {f_date_b}"
+        return False, f"Chronological inversion: prior '{f_date_a}' is after current '{f_date_b}'"
 
-    # Event type compatibility: do not compare backward-looking Actual results as revisions to Guidance
+    # Event type compatibility: both must be guidance events, never backward-looking actuals
     type_a = disclosure_a.get("event_type")
     type_b = disclosure_b.get("event_type")
-    if type_a == "EARNINGS_RESULT" and type_b in {"GUIDANCE_REVISION", "GUIDANCE_ISSUANCE"}:
+    if type_a == "EARNINGS_RESULT" or type_b == "EARNINGS_RESULT":
         return False, "Cannot compare backward-looking EARNINGS_RESULT with forward-looking GUIDANCE"
-    if type_b == "EARNINGS_RESULT" and type_a in {"GUIDANCE_REVISION", "GUIDANCE_ISSUANCE"}:
-        return False, "Cannot compare forward-looking GUIDANCE with backward-looking EARNINGS_RESULT"
+    if type_a in {"MANAGEMENT_CHANGE", "OTHER"} or type_b in {"MANAGEMENT_CHANGE", "OTHER"}:
+        return False, f"Non-guidance event type cannot form revision: '{type_a}' vs '{type_b}'"
 
     return True, "COMPATIBLE"
 

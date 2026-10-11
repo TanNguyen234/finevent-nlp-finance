@@ -53,7 +53,6 @@ class SECSubmissionsClient:
         self.headers = {
             "User-Agent": self.user_agent,
             "Accept-Encoding": "gzip, deflate",
-            "Host": "data.sec.gov",
         }
 
     def _wait_rate_limit(self) -> None:
@@ -145,6 +144,7 @@ class SECSubmissionsClient:
         form_filter: str = "8-K",
         limit: Optional[int] = None,
         force_refresh: bool = False,
+        discover_exhibits: bool = False,
     ) -> List[Dict[str, Any]]:
         """Extract a deduplicated list of filing metadata with dynamic Exhibit discovery."""
         cik_clean = str(cik).strip().zfill(10)
@@ -182,6 +182,10 @@ class SECSubmissionsClient:
             base_archive_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{accession_no_hyphens}/"
             primary_url = f"{base_archive_url}{primary_doc}"
 
+            exhibits: List[Dict[str, str]] = []
+            if discover_exhibits:
+                exhibits = self.discover_exhibits(cik_clean, accession)
+
             records.append(
                 {
                     "cik": cik_clean,
@@ -194,6 +198,7 @@ class SECSubmissionsClient:
                     "items": items_list[i] if i < len(items_list) else "",
                     "source_url": primary_url,
                     "archive_folder_url": base_archive_url,
+                    "exhibits": exhibits,
                     "source_status": "VERIFIED_METADATA",
                     "retrieved_at": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 }

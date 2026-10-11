@@ -41,7 +41,7 @@ class FinancialEvent(BaseModel):
     evidence: str = Field(..., description="Verbatim evidence substring")
     char_start: int = Field(..., ge=0, description="Start character offset")
     char_end: int = Field(..., ge=0, description="End character offset")
-    status: str = Field("reviewed", description="Annotation or audit status")
+    status: str = Field("pending_review", description="Annotation or audit status")
 
     @field_validator("cik")
     @classmethod

@@ -93,3 +93,71 @@ def test_predict_event_valid_and_invalid():
     invalid_payload = {"text": "hi"}
     res_invalid = client.post("/predict/event", json=invalid_payload)
     assert res_invalid.status_code == 422
+
+
+def test_e2_huggingface_adapter_predicts():
+    """Verify HuggingFaceBackend adapter handles pipeline output without AttributeError."""
+    from app.service import HuggingFaceBackend
+
+    def mock_pipeline(text: str):
+        return [[
+            {"label": "GUIDANCE_REVISION", "score": 0.92},
+            {"label": "EARNINGS_RESULT", "score": 0.05},
+            {"label": "MANAGEMENT_CHANGE", "score": 0.02},
+            {"label": "OTHER", "score": 0.01},
+        ]]
+
+    backend = HuggingFaceBackend(mock_pipeline, model_version="E2_DEBERTA")
+    res = backend.predict("Apple expects gross margin between 45% and 46%.")
+    assert res["predicted_class"] == "GUIDANCE_REVISION"
+    assert res["confidence"] == 0.92
+    assert "GUIDANCE_REVISION" in res["probabilities"]
+    assert backend.model_version == "E2_DEBERTA"
+
+
+def test_e2_fallback_reports_actual_e1_model(monkeypatch):
+    """Verify requesting E2 when weights are in Cloud storage transparently falls back to E1."""
+    from app.service import FinEventService
+    monkeypatch.setenv("FINEVENT_MODEL_BACKEND", "E2_DEBERTA")
+    svc = FinEventService()
+    status = svc.get_service_status()
+    assert status["configured_backend"] == "E2_DEBERTA"
+    assert status["active_model"] == "E1_TFIDF_LogReg"
+    assert status["cloud_weights_status"] == "CLOUD_STORAGE_ONLY"
+    assert status["fallback_reason"] == "E2_WEIGHTS_UNAVAILABLE_LOCAL"
+
+
+def test_exhibit_discovery_wired_into_ingestion(monkeypatch):
+    """Verify SECSubmissionsClient wires exhibit discovery without failing or hardcoding Host header."""
+    from src.ingest.sec_submissions import SECSubmissionsClient
+    client_sec = SECSubmissionsClient(user_agent="FinEventTest/1.0 test@finevent.org")
+    assert "Host" not in client_sec.headers
+
+    dummy_submissions = {
+        "cik": "0000320193",
+        "filings": {
+            "recent": {
+                "accessionNumber": ["0000320193-24-000001"],
+                "filingDate": ["2024-01-15"],
+                "reportDate": ["2024-01-15"],
+                "acceptanceDateTime": ["2024-01-15T16:30:00.000Z"],
+                "act": ["34"],
+                "form": ["8-K"],
+                "fileNumber": ["001-36743"],
+                "filmNumber": ["24510001"],
+                "items": ["Item 2.02"],
+                "size": [12345],
+                "isXBRL": [1],
+                "isInlineXBRL": [1],
+                "primaryDocument": ["aapl-20240115.htm"],
+                "primaryDocDescription": ["8-K"],
+            }
+        }
+    }
+    monkeypatch.setattr(client_sec, "fetch_submissions", lambda cik, force_refresh=False: dummy_submissions)
+    monkeypatch.setattr(client_sec, "discover_exhibits", lambda cik, acc: [{"doc_type": "EX-99.1", "description": "Press Release"}])
+
+    manifest = client_sec.get_filings_manifest("0000320193", form_filter="8-K", discover_exhibits=True)
+    assert len(manifest) == 1
+    assert manifest[0]["exhibits"] == [{"doc_type": "EX-99.1", "description": "Press Release"}]
+

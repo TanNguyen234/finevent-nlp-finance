@@ -165,3 +165,49 @@ def test_cross_unit_delta_computation_normalized():
     assert change["delta_mid"] == 0.1
     assert change["conv_old_low"] == 1.0
 
+
+def test_missing_cik_is_not_comparable():
+    """Verify missing CIK on either side causes fail-closed non-comparable rejection."""
+    a = {"cik": "", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B"}
+    b = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B"}
+    is_comp, reason = validate_guidance_identity_compatibility(a, b)
+    assert not is_comp
+    assert "CIK mismatch or missing" in reason
+
+
+def test_missing_currency_is_not_assumed_usd():
+    """Verify that a missing or unstated currency is NOT automatically assumed to be USD."""
+    a = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B", "currency": "USD"}
+    b = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B"}  # currency missing
+    is_comp, reason = validate_guidance_identity_compatibility(a, b)
+    assert not is_comp
+    assert "Currency mismatch or unverified" in reason
+
+
+def test_missing_scope_is_not_assumed_consolidated():
+    """Verify that missing reporting scope is NOT automatically assumed to be CONSOLIDATED."""
+    a = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B", "reporting_scope": "SEGMENT"}
+    b = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B"}  # scope missing
+    is_comp, reason = validate_guidance_identity_compatibility(a, b)
+    assert not is_comp
+    assert "Reporting scope mismatch or unverified" in reason
+
+
+def test_unknown_accounting_basis_rejected():
+    """Verify UNKNOWN accounting basis is rejected fail-closed."""
+    a = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B", "accounting_basis": "UNKNOWN"}
+    b = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B", "accounting_basis": "GAAP"}
+    is_comp, reason = validate_guidance_identity_compatibility(a, b)
+    assert not is_comp
+    assert "Accounting basis unverified or unknown" in reason
+
+
+def test_both_events_must_be_company_guidance():
+    """Verify that non-guidance event types like MANAGEMENT_CHANGE cannot form a guidance revision."""
+    a = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B", "event_type": "MANAGEMENT_CHANGE"}
+    b = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B", "event_type": "GUIDANCE_REVISION"}
+    is_comp, reason = validate_guidance_identity_compatibility(a, b)
+    assert not is_comp
+    assert "Non-guidance event type cannot form revision" in reason
+
+
