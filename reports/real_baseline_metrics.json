@@ -1,31 +1,31 @@
 {
   "dataset_origin": "MANUALLY_AUTHORED_SEEDS",
   "sample_counts": {
-    "train": 12,
+    "train": 9,
     "val": 3,
-    "test": 5
+    "test": 3
   },
   "E0_Rule": {
-    "macro_f1": 0.45,
-    "weighted_f1": 0.88,
+    "macro_f1": 0.5,
+    "weighted_f1": 0.6667,
     "per_class": {
       "GUIDANCE_REVISION": {
-        "precision": 1.0,
-        "recall": 0.6667,
-        "f1": 0.8,
-        "support": 3.0
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 1.0
       },
       "EARNINGS_RESULT": {
         "precision": 1.0,
         "recall": 1.0,
         "f1": 1.0,
-        "support": 2.0
+        "support": 1.0
       },
       "MANAGEMENT_CHANGE": {
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1": 0.0,
-        "support": 0.0
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 1.0
       },
       "OTHER": {
         "precision": 0.0,
@@ -36,21 +36,21 @@
     },
     "confusion_matrix": [
       [
-        2,
+        0,
         0,
         0,
         1
       ],
       [
         0,
-        2,
+        1,
         0,
         0
       ],
       [
         0,
         0,
-        0,
+        1,
         0
       ],
       [
@@ -66,29 +66,29 @@
       "MANAGEMENT_CHANGE",
       "OTHER"
     ],
-    "total_evaluated": 5
+    "total_evaluated": 3
   },
   "E1_TFIDF_LogReg": {
-    "macro_f1": 0.5,
+    "macro_f1": 0.75,
     "weighted_f1": 1.0,
     "per_class": {
       "GUIDANCE_REVISION": {
         "precision": 1.0,
         "recall": 1.0,
         "f1": 1.0,
-        "support": 3.0
+        "support": 1.0
       },
       "EARNINGS_RESULT": {
         "precision": 1.0,
         "recall": 1.0,
         "f1": 1.0,
-        "support": 2.0
+        "support": 1.0
       },
       "MANAGEMENT_CHANGE": {
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1": 0.0,
-        "support": 0.0
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 1.0
       },
       "OTHER": {
         "precision": 0.0,
@@ -99,21 +99,21 @@
     },
     "confusion_matrix": [
       [
-        3,
+        1,
         0,
         0,
         0
       ],
       [
         0,
-        2,
+        1,
         0,
         0
       ],
       [
         0,
         0,
-        0,
+        1,
         0
       ],
       [
@@ -129,6 +129,6 @@
       "MANAGEMENT_CHANGE",
       "OTHER"
     ],
-    "total_evaluated": 5
+    "total_evaluated": 3
   }
 }
