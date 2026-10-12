@@ -13,29 +13,74 @@ from src.extract.change import (
 )
 
 
-def test_actual_result_cannot_compare_with_guidance():
+def test_actual_not_guidance():
     """Verify actual backward-looking results cannot be paired with forward guidance."""
     actual_event = {
         "cik": "0000320193",
         "metric": "revenue",
         "target_fiscal_period": "Q1 2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-10-01",
         "event_type": "EARNINGS_RESULT",
         "new_low": 90.0,
         "new_high": 90.0,
-        "unit": "USD_B",
     }
     guidance_event = {
         "cik": "0000320193",
         "metric": "revenue",
         "target_fiscal_period": "Q1 2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-11-01",
         "event_type": "GUIDANCE_REVISION",
         "new_low": 95.0,
         "new_high": 100.0,
-        "unit": "USD_B",
     }
     is_comp, reason = validate_guidance_identity_compatibility(actual_event, guidance_event)
     assert not is_comp
-    assert "EARNINGS_RESULT" in reason
+    assert "EARNINGS_RESULT" in reason or "actual" in reason.lower()
+
+
+# Backward compatibility alias
+test_actual_result_cannot_compare_with_guidance = test_actual_not_guidance
+
+
+def test_consensus_not_guidance():
+    """Verify analyst consensus cannot be compared as company guidance."""
+    consensus_event = {
+        "cik": "0000320193",
+        "metric": "revenue",
+        "target_fiscal_period": "Q1 2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-10-01",
+        "event_type": "ANALYST_CONSENSUS",
+        "new_low": 90.0,
+        "new_high": 90.0,
+    }
+    guidance_event = {
+        "cik": "0000320193",
+        "metric": "revenue",
+        "target_fiscal_period": "Q1 2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-11-01",
+        "event_type": "GUIDANCE_REVISION",
+        "new_low": 95.0,
+        "new_high": 100.0,
+    }
+    is_comp, reason = validate_guidance_identity_compatibility(consensus_event, guidance_event)
+    assert not is_comp
+    assert "consensus" in reason.lower()
 
 
 def test_different_target_periods_rejected():
@@ -44,7 +89,12 @@ def test_different_target_periods_rejected():
         "cik": "0000320193",
         "metric": "revenue",
         "target_fiscal_period": "Q1 2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
         "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-10-01",
+        "event_type": "GUIDANCE_REVISION",
         "new_low": 90.0,
         "new_high": 95.0,
     }
@@ -52,7 +102,12 @@ def test_different_target_periods_rejected():
         "cik": "0000320193",
         "metric": "revenue",
         "target_fiscal_period": "Q2 2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
         "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-10-01",
+        "event_type": "GUIDANCE_REVISION",
         "new_low": 95.0,
         "new_high": 100.0,
     }
@@ -68,7 +123,11 @@ def test_accounting_basis_gaap_vs_nongaap():
         "metric": "gross_margin",
         "target_fiscal_period": "FY 2025",
         "accounting_basis": "GAAP",
+        "currency": "NOT_APPLICABLE",
         "unit": "PERCENT",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-10-01",
+        "event_type": "GUIDANCE_REVISION",
         "new_low": 45.0,
         "new_high": 46.0,
     }
@@ -77,7 +136,11 @@ def test_accounting_basis_gaap_vs_nongaap():
         "metric": "gross_margin",
         "target_fiscal_period": "FY 2025",
         "accounting_basis": "NON_GAAP",
+        "currency": "NOT_APPLICABLE",
         "unit": "PERCENT",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-10-01",
+        "event_type": "GUIDANCE_REVISION",
         "new_low": 48.0,
         "new_high": 49.0,
     }
@@ -92,18 +155,28 @@ def test_zero_numeric_value_handling():
         "cik": "0000320193",
         "metric": "diluted_eps",
         "target_fiscal_period": "Q1 2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-10-01",
+        "event_type": "GUIDANCE_REVISION",
         "new_low": 0.0,
         "new_high": 0.10,
-        "unit": "USD",
         "evidence": "prior EPS 0.0 to 0.10",
     }
     current = {
         "cik": "0000320193",
         "metric": "diluted_eps",
         "target_fiscal_period": "Q1 2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-11-01",
+        "event_type": "GUIDANCE_REVISION",
         "new_low": 0.20,
         "new_high": 0.30,
-        "unit": "USD",
         "evidence": "revised EPS 0.20 to 0.30",
     }
     change = detect_guidance_change(prior, current)
@@ -145,18 +218,28 @@ def test_cross_unit_delta_computation_normalized():
         "cik": "0000320193",
         "metric": "revenue",
         "target_fiscal_period": "Q1 2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD_M",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-10-01",
+        "event_type": "GUIDANCE_REVISION",
         "new_low": 1000.0,
         "new_high": 1000.0,
-        "unit": "USD_M",
         "evidence": "prior guidance 1000 million",
     }
     current = {
         "cik": "0000320193",
         "metric": "revenue",
         "target_fiscal_period": "Q1 2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-11-01",
+        "event_type": "GUIDANCE_REVISION",
         "new_low": 1.1,
         "new_high": 1.1,
-        "unit": "USD_B",
         "evidence": "revised revenue 1.1 billion",
     }
     change = detect_guidance_change(prior, current)
@@ -166,48 +249,191 @@ def test_cross_unit_delta_computation_normalized():
     assert change["conv_old_low"] == 1.0
 
 
-def test_missing_cik_is_not_comparable():
+def test_missing_cik_rejected():
     """Verify missing CIK on either side causes fail-closed non-comparable rejection."""
-    a = {"cik": "", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B"}
-    b = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B"}
+    a = {
+        "cik": "",
+        "metric": "revenue",
+        "target_fiscal_period": "FY2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-10-01",
+        "event_type": "GUIDANCE_REVISION",
+    }
+    b = {
+        "cik": "0000320193",
+        "metric": "revenue",
+        "target_fiscal_period": "FY2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-11-01",
+        "event_type": "GUIDANCE_REVISION",
+    }
     is_comp, reason = validate_guidance_identity_compatibility(a, b)
     assert not is_comp
     assert "CIK mismatch or missing" in reason
 
 
-def test_missing_currency_is_not_assumed_usd():
+# Backward compatibility alias
+test_missing_cik_is_not_comparable = test_missing_cik_rejected
+
+
+def test_missing_currency_rejected():
     """Verify that a missing or unstated currency is NOT automatically assumed to be USD."""
-    a = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B", "currency": "USD"}
-    b = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B"}  # currency missing
+    a = {
+        "cik": "0000320193",
+        "metric": "revenue",
+        "target_fiscal_period": "FY2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-10-01",
+        "event_type": "GUIDANCE_REVISION",
+    }
+    b = {
+        "cik": "0000320193",
+        "metric": "revenue",
+        "target_fiscal_period": "FY2025",
+        "accounting_basis": "GAAP",
+        "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-11-01",
+        "event_type": "GUIDANCE_REVISION",
+    }  # currency missing
     is_comp, reason = validate_guidance_identity_compatibility(a, b)
     assert not is_comp
     assert "Currency mismatch or unverified" in reason
 
+    # Both missing currency
+    a_no_curr = dict(a)
+    del a_no_curr["currency"]
+    is_comp2, reason2 = validate_guidance_identity_compatibility(a_no_curr, b)
+    assert not is_comp2
+    assert "Currency mismatch or unverified" in reason2
 
-def test_missing_scope_is_not_assumed_consolidated():
+
+# Backward compatibility alias
+test_missing_currency_is_not_assumed_usd = test_missing_currency_rejected
+
+
+def test_missing_scope_rejected():
     """Verify that missing reporting scope is NOT automatically assumed to be CONSOLIDATED."""
-    a = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B", "reporting_scope": "SEGMENT"}
-    b = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B"}  # scope missing
+    a = {
+        "cik": "0000320193",
+        "metric": "revenue",
+        "target_fiscal_period": "FY2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD_B",
+        "reporting_scope": "SEGMENT",
+        "filing_date": "2024-10-01",
+        "event_type": "GUIDANCE_REVISION",
+    }
+    b = {
+        "cik": "0000320193",
+        "metric": "revenue",
+        "target_fiscal_period": "FY2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD_B",
+        "filing_date": "2024-11-01",
+        "event_type": "GUIDANCE_REVISION",
+    }  # scope missing
     is_comp, reason = validate_guidance_identity_compatibility(a, b)
     assert not is_comp
     assert "Reporting scope mismatch or unverified" in reason
 
 
+# Backward compatibility alias
+test_missing_scope_is_not_assumed_consolidated = test_missing_scope_rejected
+
+
 def test_unknown_accounting_basis_rejected():
     """Verify UNKNOWN accounting basis is rejected fail-closed."""
-    a = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B", "accounting_basis": "UNKNOWN"}
-    b = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B", "accounting_basis": "GAAP"}
+    a = {
+        "cik": "0000320193",
+        "metric": "revenue",
+        "target_fiscal_period": "FY2025",
+        "accounting_basis": "UNKNOWN",
+        "currency": "USD",
+        "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-10-01",
+        "event_type": "GUIDANCE_REVISION",
+    }
+    b = {
+        "cik": "0000320193",
+        "metric": "revenue",
+        "target_fiscal_period": "FY2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-11-01",
+        "event_type": "GUIDANCE_REVISION",
+    }
     is_comp, reason = validate_guidance_identity_compatibility(a, b)
     assert not is_comp
     assert "Accounting basis unverified or unknown" in reason
 
 
+def test_missing_date_rejected():
+    """Verify missing filing date on either record causes fail-closed rejection."""
+    a = {
+        "cik": "0000320193",
+        "metric": "revenue",
+        "target_fiscal_period": "FY2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "event_type": "GUIDANCE_REVISION",
+    }  # filing_date missing
+    b = {
+        "cik": "0000320193",
+        "metric": "revenue",
+        "target_fiscal_period": "FY2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-11-01",
+        "event_type": "GUIDANCE_REVISION",
+    }
+    is_comp, reason = validate_guidance_identity_compatibility(a, b)
+    assert not is_comp
+    assert "Filing date missing or unverified" in reason
+
+
 def test_both_events_must_be_company_guidance():
     """Verify that non-guidance event types like MANAGEMENT_CHANGE cannot form a guidance revision."""
-    a = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B", "event_type": "MANAGEMENT_CHANGE"}
-    b = {"cik": "0000320193", "metric": "revenue", "target_fiscal_period": "FY2025", "unit": "USD_B", "event_type": "GUIDANCE_REVISION"}
+    a = {
+        "cik": "0000320193",
+        "metric": "revenue",
+        "target_fiscal_period": "FY2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-10-01",
+        "event_type": "MANAGEMENT_CHANGE",
+    }
+    b = {
+        "cik": "0000320193",
+        "metric": "revenue",
+        "target_fiscal_period": "FY2025",
+        "accounting_basis": "GAAP",
+        "currency": "USD",
+        "unit": "USD_B",
+        "reporting_scope": "CONSOLIDATED",
+        "filing_date": "2024-11-01",
+        "event_type": "GUIDANCE_REVISION",
+    }
     is_comp, reason = validate_guidance_identity_compatibility(a, b)
     assert not is_comp
     assert "Non-guidance event type cannot form revision" in reason
-
-

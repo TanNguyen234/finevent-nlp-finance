@@ -17,13 +17,9 @@ logger = logging.getLogger(__name__)
 def are_units_compatible(unit_a: str, unit_b: str) -> bool:
     """Check if two units belong to the same dimensional family."""
     currency_units = {"USD_B", "USD_M", "USD"}
-    percentage_units = {"PERCENT", "PERCENTAGE_POINTS"}
-
     if unit_a in currency_units and unit_b in currency_units:
         return True
-    if unit_a in percentage_units and unit_b in percentage_units:
-        return True
-    if unit_a == unit_b and unit_a not in {"UNKNOWN"}:
+    if unit_a == unit_b and unit_a not in {"UNKNOWN", ""}:
         return True
     return False
 
@@ -36,68 +32,101 @@ def validate_guidance_identity_compatibility(
 
     Enforces strict fail-closed 7-tuple identity matching:
     (cik, metric, target_fiscal_period, accounting_basis, currency, unit, scope)
+    along with chronological ordering and verified company guidance event types.
     Returns (is_compatible, reason).
     """
-    # 1. Company CIK match (fail-closed if missing or mismatch)
-    cik_a = disclosure_a.get("cik")
-    cik_b = disclosure_b.get("cik")
-    if not cik_a or not cik_b or cik_a != cik_b:
+    # 1. Company CIK match (fail-closed if missing, unknown, or mismatch)
+    cik_a = str(disclosure_a.get("cik") or disclosure_a.get("company_cik") or "").strip()
+    cik_b = str(disclosure_b.get("cik") or disclosure_b.get("company_cik") or "").strip()
+    if not cik_a or not cik_b or cik_a in {"UNKNOWN", ""} or cik_b in {"UNKNOWN", ""} or cik_a != cik_b:
         return False, f"CIK mismatch or missing: '{cik_a}' vs '{cik_b}'"
 
     # 2. Metric match (fail-closed if missing, unknown, or mismatch)
-    metric_a = (disclosure_a.get("metric") or "").lower()
-    metric_b = (disclosure_b.get("metric") or "").lower()
-    if not metric_a or not metric_b or metric_a == "unknown" or metric_b == "unknown" or metric_a != metric_b:
+    metric_a = (disclosure_a.get("metric") or "").lower().strip()
+    metric_b = (disclosure_b.get("metric") or "").lower().strip()
+    if not metric_a or not metric_b or metric_a in {"unknown", ""} or metric_b in {"unknown", ""} or metric_a != metric_b:
         return False, f"Metric mismatch or missing: '{metric_a}' vs '{metric_b}'"
 
     # 3. Target fiscal period match (fail-closed if missing, unknown, or mismatch)
-    p_a = disclosure_a.get("target_fiscal_period") or disclosure_a.get("fiscal_period")
-    p_b = disclosure_b.get("target_fiscal_period") or disclosure_b.get("fiscal_period")
-    if not p_a or not p_b or p_a == "UNKNOWN" or p_b == "UNKNOWN" or p_a != p_b:
+    p_a = str(disclosure_a.get("target_fiscal_period") or disclosure_a.get("fiscal_period") or "").strip()
+    p_b = str(disclosure_b.get("target_fiscal_period") or disclosure_b.get("fiscal_period") or "").strip()
+    if not p_a or not p_b or p_a in {"UNKNOWN", ""} or p_b in {"UNKNOWN", ""} or p_a != p_b:
         return False, f"Target fiscal period mismatch or missing: '{p_a}' vs '{p_b}'"
 
-    # 4. Accounting basis compatibility (fail-closed if unknown, mismatched, or partially missing)
-    basis_a = disclosure_a.get("accounting_basis")
-    basis_b = disclosure_b.get("accounting_basis")
-    if basis_a == "UNKNOWN" or basis_b == "UNKNOWN":
+    # 4. Accounting basis compatibility (fail-closed: reject missing, UNKNOWN, or mismatch)
+    basis_a = str(disclosure_a.get("accounting_basis") or "").strip()
+    basis_b = str(disclosure_b.get("accounting_basis") or "").strip()
+    if not basis_a or not basis_b or basis_a in {"UNKNOWN", ""} or basis_b in {"UNKNOWN", ""}:
         return False, f"Accounting basis unverified or unknown: '{basis_a}' vs '{basis_b}'"
-    if (basis_a and not basis_b) or (basis_b and not basis_a) or (basis_a and basis_b and basis_a != basis_b):
-        return False, f"Accounting basis mismatch or unverified: '{basis_a}' vs '{basis_b}'"
+    if basis_a != basis_b:
+        return False, f"Accounting basis mismatch: '{basis_a}' vs '{basis_b}'"
 
-    # 5. Currency & Unit compatibility (fail-closed: do not assume USD if missing or unknown)
-    curr_a = disclosure_a.get("currency")
-    curr_b = disclosure_b.get("currency")
-    if curr_a == "UNKNOWN" or curr_b == "UNKNOWN":
-        return False, f"Currency unverified or unknown: '{curr_a}' vs '{curr_b}'"
-    if (curr_a and not curr_b) or (curr_b and not curr_a) or (curr_a and curr_b and curr_a != curr_b):
+    # 5. Currency compatibility (fail-closed: reject missing, UNKNOWN, or mismatch; never assume USD)
+    curr_a = str(disclosure_a.get("currency") or "").strip()
+    curr_b = str(disclosure_b.get("currency") or "").strip()
+    if not curr_a or not curr_b or curr_a in {"UNKNOWN", ""} or curr_b in {"UNKNOWN", ""}:
+        return False, f"Currency mismatch or unverified: '{curr_a}' vs '{curr_b}'"
+    if curr_a != curr_b:
         return False, f"Currency mismatch or unverified: '{curr_a}' vs '{curr_b}'"
 
-    u_a = disclosure_a.get("unit")
-    u_b = disclosure_b.get("unit")
-    if not u_a or not u_b or u_a == "UNKNOWN" or u_b == "UNKNOWN" or not are_units_compatible(u_a, u_b):
+    # 6. Unit dimension compatibility
+    u_a = str(disclosure_a.get("unit") or "").strip()
+    u_b = str(disclosure_b.get("unit") or "").strip()
+    if not u_a or not u_b or u_a in {"UNKNOWN", ""} or u_b in {"UNKNOWN", ""} or not are_units_compatible(u_a, u_b):
         return False, f"Incompatible or missing units: '{u_a}' vs '{u_b}'"
 
-    # 6. Reporting scope compatibility (fail-closed: do not assume CONSOLIDATED if missing or unknown)
-    scope_a = disclosure_a.get("reporting_scope")
-    scope_b = disclosure_b.get("reporting_scope")
-    if scope_a == "UNKNOWN" or scope_b == "UNKNOWN":
-        return False, f"Reporting scope unverified or unknown: '{scope_a}' vs '{scope_b}'"
-    if (scope_a and not scope_b) or (scope_b and not scope_a) or (scope_a and scope_b and scope_a != scope_b):
+    # 7. Reporting scope compatibility (fail-closed: reject missing, UNKNOWN, or mismatch; never assume CONSOLIDATED)
+    scope_a = str(disclosure_a.get("reporting_scope") or "").strip()
+    scope_b = str(disclosure_b.get("reporting_scope") or "").strip()
+    if not scope_a or not scope_b or scope_a in {"UNKNOWN", ""} or scope_b in {"UNKNOWN", ""}:
+        return False, f"Reporting scope mismatch or unverified: '{scope_a}' vs '{scope_b}'"
+    if scope_a != scope_b:
         return False, f"Reporting scope mismatch or unverified: '{scope_a}' vs '{scope_b}'"
 
-    # 7. Chronological ordering (prior must not be filed after current)
-    f_date_a = disclosure_a.get("filing_date")
-    f_date_b = disclosure_b.get("filing_date")
-    if f_date_a and f_date_b and f_date_a > f_date_b:
+    # 8. Chronological ordering (prior must have valid date and not be after current)
+    f_date_a = str(disclosure_a.get("filing_date") or "").strip()
+    f_date_b = str(disclosure_b.get("filing_date") or "").strip()
+    if not f_date_a or not f_date_b or f_date_a in {"UNKNOWN", ""} or f_date_b in {"UNKNOWN", ""}:
+        return False, f"Filing date missing or unverified: '{f_date_a}' vs '{f_date_b}'"
+    if f_date_a > f_date_b:
         return False, f"Chronological inversion: prior '{f_date_a}' is after current '{f_date_b}'"
 
-    # Event type compatibility: both must be guidance events, never backward-looking actuals
-    type_a = disclosure_a.get("event_type")
-    type_b = disclosure_b.get("event_type")
-    if type_a == "EARNINGS_RESULT" or type_b == "EARNINGS_RESULT":
+    # 9. Event type compatibility: both must represent company-issued guidance
+    type_a = str(disclosure_a.get("event_type") or "").strip()
+    type_b = str(disclosure_b.get("event_type") or "").strip()
+    if not type_a or not type_b or type_a in {"UNKNOWN", ""} or type_b in {"UNKNOWN", ""}:
+        return False, f"Event type missing or unverified: '{type_a}' vs '{type_b}'"
+
+    # 9a. Never compare actual backward-looking earnings
+    if type_a == "EARNINGS_RESULT" or type_b == "EARNINGS_RESULT" or disclosure_a.get("is_actual") or disclosure_b.get("is_actual"):
         return False, "Cannot compare backward-looking EARNINGS_RESULT with forward-looking GUIDANCE"
-    if type_a in {"MANAGEMENT_CHANGE", "OTHER"} or type_b in {"MANAGEMENT_CHANGE", "OTHER"}:
+
+    # 9b. Never compare analyst consensus as company guidance
+    is_consensus_a = (
+        disclosure_a.get("is_consensus")
+        or disclosure_a.get("source_type") in {"CONSENSUS", "ANALYST_CONSENSUS"}
+        or "consensus" in type_a.lower()
+        or "consensus" in str(disclosure_a.get("source", "")).lower()
+        or "consensus" in str(disclosure_a.get("evidence", "")).lower()
+        or "consensus" in str(disclosure_a.get("text", "")).lower()
+    )
+    is_consensus_b = (
+        disclosure_b.get("is_consensus")
+        or disclosure_b.get("source_type") in {"CONSENSUS", "ANALYST_CONSENSUS"}
+        or "consensus" in type_b.lower()
+        or "consensus" in str(disclosure_b.get("source", "")).lower()
+        or "consensus" in str(disclosure_b.get("evidence", "")).lower()
+        or "consensus" in str(disclosure_b.get("text", "")).lower()
+    )
+    if is_consensus_a or is_consensus_b or type_a in {"CONSENSUS", "ANALYST_CONSENSUS"} or type_b in {"CONSENSUS", "ANALYST_CONSENSUS"}:
+        return False, "Analyst consensus cannot be compared as company guidance"
+
+    # 9c. Both records must be recognized company guidance events
+    valid_guidance_types = {"GUIDANCE", "GUIDANCE_REVISION", "GUIDANCE_ISSUANCE", "COMPANY_GUIDANCE"}
+    if type_a not in valid_guidance_types or type_b not in valid_guidance_types:
         return False, f"Non-guidance event type cannot form revision: '{type_a}' vs '{type_b}'"
+
+    return True, "COMPATIBLE"
 
     return True, "COMPATIBLE"
 
@@ -155,6 +184,8 @@ def detect_guidance_change(
                 "fiscal_period": disclosure_a.get("fiscal_period", "UNKNOWN"),
                 "direction": "NOT_COMPARABLE",
                 "reason": reason,
+                "evidence_completeness_score": 0.0,
+                "model_probability": None,
                 "confidence": 0.0,
             }
 
@@ -248,6 +279,7 @@ def detect_guidance_change(
         "filing_date_prior": f_date_a,
         "filing_date_current": f_date_b,
         "evidence_completeness_score": completeness_score,
+        "model_probability": None,
         "confidence": completeness_score,
     }
 
