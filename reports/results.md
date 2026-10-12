@@ -50,14 +50,14 @@ This table records the historical execution of `kaggle/train_finevent.py` on Kag
 
 ---
 
-## 4. Financial Guidance Identity Ablation Benchmark
+## 4. Deterministic Guidance-Comparison Ablation / Regression Experiment
 
-Dynamic execution of ablated functions on candidate revision pairs (`reports/ablation_results.json`):
+Dynamic regression evaluation of ablated logic on 4 synthetic boundary cases (`reports/ablation_results.json`):
 
 | Configuration | Test Pairs | Naive False Positives | Strict Identity Rejections | Precision Delta | Status |
 | :--- | :--- | :---: | :---: | :---: | :--- |
 | **A1: Remove Guidance Identity** | 4 boundary test cases | 3 (100% false alarms) | 0 | 0.0% | Ablated Execution (Accuracy 25%) |
 | **A2: Disable Unit Normalization** | 4 boundary test cases | 0 | 1 (Unit failure) | Defective deltas | Ablated Execution (Accuracy 75%) |
-| **A0: Full Pipeline (Strict Identity)** | 4 boundary test cases | 0 (0% false alarms) | 3 (100% rejected) | +100.0% precision | Full Production Pipeline (Accuracy 100%) |
+| **A0: Full Pipeline (Strict Identity)** | 4 boundary test cases | 0 (0% false alarms) | 3 (100% rejected) | +100.0% precision | Full Pipeline (Accuracy 100%) |
 
-**Takeaway**: Enforcing the 7-tuple Guidance Identity `(company, metric, target_fiscal_period, accounting_basis, currency, unit, scope)` completely eliminates false revision inferences between historical earnings results and forward guidance, GAAP vs Non-GAAP disclosures, and mismatched fiscal quarters.
+*Scope & Limitation*: This ablation serves as a deterministic guidance-comparison ablation and regression check across four synthetic boundary test cases. It confirms fail-closed behavior on unverified pairs, but does not claim to establish research-level generalization or an empirical production false-positive rate.

@@ -67,7 +67,7 @@ Given a company CIK and historical disclosure filings, FinEvent determines:
 
 To eliminate synthetic contamination and ensure research-grade integrity, FinEvent enforces strict separation between data subsets:
 
-- `data/labels/`: Audited Authentic SEC Historical Benchmark (15 records from historical Form 8-K filings of Apple Inc. and Microsoft Corporation between 2019 and 2024 with 0% character-offset error). Partitioned via Chronological Temporal Split:
+- `data/labels/`: Exploratory Historical Seed Dataset (15 manually authored records, `PENDING_REVIEW`, pending formal gold verification; 5 quarantined records in `data/quarantine/`; 3 held-out exploratory test samples). Partitioned via Chronological Temporal Split:
   - `train.jsonl`: 9 samples (2019–2020)
   - `val.jsonl`: 3 samples (2021)
   - `test.jsonl`: 3 samples (2024 held-out)
@@ -93,10 +93,11 @@ $$\text{Identity} = (\text{CIK}, \text{Metric}, \text{TargetFiscalPeriod}, \text
 - Units and currencies are normalized (`USD_B` = 1,000 * `USD_M`), but incompatible dimensions (`PERCENT` vs `USD_B`) are rejected with `Incompatible units`.
 - Explicit null handling (`is not None`) preserves zero numeric values ($0.00 diluted EPS) from being discarded.
 
-### Ablation Findings
-In dynamic execution across cross-domain disclosure pairs (`reports/ablation_results.json`):
+### Deterministic Guidance-Comparison Ablation / Regression Experiment
+Evaluates 4 synthetic boundary test cases in candidate guidance comparison (`reports/ablation_results.json`):
 - Without Guidance Identity (A1): 3 false positive revisions (100% false alarm rate).
 - Strict Guidance Identity matching (A0): 0 false positive revisions (100% precision).
+*Note*: This ablation functions as a deterministic unit/regression test of fail-closed constraints on synthetic boundary pairs; it does not claim to establish empirical production false-positive rates or research-level generalization.
 
 ---
 
@@ -178,7 +179,7 @@ finevent-nlp-finance/
 │   ├── extract/          # Segmenters, argument extraction, 7-tuple change logic
 │   ├── ingest/           # SEC EDGAR crawlers, submissions, and parsers
 │   └── train/            # Local E0/E1 baseline training pipelines
-└── tests/                # 33 verified unit and integration tests
+└── tests/                # Unit, API, financial reasoning, and SEC integration tests (pytest suite)
 ```
 
 ---
