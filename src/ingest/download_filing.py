@@ -14,6 +14,12 @@ import time
 from typing import Any, Dict, List, Optional
 import requests
 
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except Exception:
+    pass
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_USER_AGENT = os.environ.get(
@@ -63,6 +69,7 @@ class FilingDownloader:
         primary_document: str,
         cik: str = "UNKNOWN",
         document_type: str = "PRIMARY_8K",
+        filing_date: str = "",
         force_download: bool = False,
     ) -> Dict[str, Any]:
         """Download document, calculate SHA-256 hash, and record provenance."""
@@ -77,6 +84,7 @@ class FilingDownloader:
                 "cik": cik,
                 "accession_number": accession_number,
                 "form": "8-K",
+                "filing_date": filing_date,
                 "source_url": source_url,
                 "document_type": document_type,
                 "sha256": sha256,
@@ -102,6 +110,7 @@ class FilingDownloader:
                 "cik": cik,
                 "accession_number": accession_number,
                 "form": "8-K",
+                "filing_date": filing_date,
                 "source_url": source_url,
                 "document_type": document_type,
                 "sha256": sha256,
@@ -115,3 +124,25 @@ class FilingDownloader:
         except Exception as exc:
             logger.error("Failed to download filing from %s: %s", source_url, exc)
             raise
+
+    def download_exhibit(
+        self,
+        exhibit: Dict[str, Any],
+        accession_number: str,
+        cik: str = "UNKNOWN",
+        filing_date: str = "",
+        force_download: bool = False,
+    ) -> Dict[str, Any]:
+        """Download an exhibit document (e.g. EX-99.1 press release) and track provenance."""
+        source_url = exhibit.get("url") or exhibit.get("source_url", "")
+        filename = exhibit.get("filename") or pathlib.Path(source_url).name
+        doc_type = exhibit.get("type") or exhibit.get("doc_type") or "EX-99.1"
+        return self.download_document(
+            source_url=source_url,
+            accession_number=accession_number,
+            primary_document=filename,
+            cik=cik,
+            document_type=doc_type,
+            filing_date=filing_date,
+            force_download=force_download,
+        )

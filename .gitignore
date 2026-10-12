@@ -25,8 +25,7 @@ venv/
 ENV/
 
 # Data & Models (Do not commit heavy raw filings or huge checkpoints)
-data/raw/sec/*.html
-data/raw/sec/*.htm
+data/raw/
 *.bin
 *.safetensors
 *.pt

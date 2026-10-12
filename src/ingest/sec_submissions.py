@@ -15,6 +15,12 @@ import time
 from typing import Any, Dict, List, Optional
 import requests
 
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except Exception:
+    pass
+
 logger = logging.getLogger(__name__)
 
 SEC_SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
@@ -108,9 +114,12 @@ class SECSubmissionsClient:
     def discover_exhibits(self, cik: str, accession: str) -> List[Dict[str, str]]:
         """Dynamically discover exhibits by parsing the SEC EDGAR filing document index table.
 
-        Does not guess static filenames; resolves actual document hrefs from the filing directory.
+        Uses BeautifulSoup to parse document index table and selects documents by actual document type.
         """
         import re
+        import urllib.parse
+        from bs4 import BeautifulSoup
+
         cik_clean = str(cik).strip().zfill(10)
         cik_int = int(cik_clean)
         accession_no_hyphens = accession.replace("-", "")
@@ -122,17 +131,50 @@ class SECSubmissionsClient:
             self._wait_rate_limit()
             resp = requests.get(index_url, headers=self.headers, timeout=self.timeout)
             if resp.status_code == 200:
-                rows = re.findall(r'<tr[^>]*>(.*?)</tr>', resp.text, re.DOTALL | re.IGNORECASE)
+                soup = BeautifulSoup(resp.text, "html.parser")
+                tables = soup.find_all("table")
+                rows = []
+                for table in tables:
+                    rows.extend(table.find_all("tr"))
+                if not rows:
+                    rows = soup.find_all("tr")
+
                 for row in rows:
-                    if re.search(r'\b(?:EX-99|EXHIBIT\s+99|99\.1)\b', row, re.IGNORECASE):
-                        m_link = re.search(r'href=["\']([^"\']+\.htm[l]?)["\']', row, re.IGNORECASE)
-                        if m_link:
-                            filename = m_link.group(1).split("/")[-1]
-                            exhibits.append({
-                                "type": "EX-99.1",
-                                "filename": filename,
-                                "url": f"{base_archive_url}{filename}",
-                            })
+                    cells = row.find_all(["td", "th"])
+                    row_text = " ".join(c.get_text(strip=True) for c in cells)
+                    if not re.search(r'\b(?:EX-99(?:\.\d+)?|EXHIBIT\s+99(?:\.\d+)?|99\.\d+)\b', row_text, re.IGNORECASE):
+                        continue
+
+                    link = row.find("a", href=True)
+                    if not link:
+                        continue
+
+                    href = link["href"].strip()
+                    raw_filename = href.split("/")[-1].split("?")[0]
+                    full_url = urllib.parse.urljoin(base_archive_url, raw_filename)
+
+                    doc_type = "EX-99.1"
+                    for c in cells:
+                        ctext = c.get_text(strip=True)
+                        m_type = re.search(r'\b(EX-99(?:\.\d+)?|99\.\d+)\b', ctext, re.IGNORECASE)
+                        if m_type:
+                            doc_type = m_type.group(1).upper()
+                            break
+
+                    doc_desc = link.get_text(strip=True)
+                    for c in cells:
+                        ctext = c.get_text(strip=True)
+                        if ctext and ctext not in {doc_type, raw_filename, link.get_text(strip=True)} and not ctext.isdigit():
+                            doc_desc = ctext
+                            break
+
+                    exhibits.append({
+                        "type": doc_type,
+                        "doc_type": doc_type,
+                        "filename": raw_filename,
+                        "description": doc_desc,
+                        "url": full_url,
+                    })
         except Exception as exc:
             logger.warning("Could not dynamically resolve exhibits for %s: %s", accession, exc)
 
