@@ -88,9 +88,12 @@ class SklearnBackend(BaseInferenceBackend):
         prob_dict = {str(c): round(float(p), 4) for c, p in zip(classes, probas)}
         confidence = prob_dict.get(pred_class, 0.75)
         return {
+            "event_type": pred_class,
             "predicted_class": pred_class,
             "confidence": round(confidence, 4),
+            "scores": prob_dict,
             "probabilities": prob_dict,
+            "model_version": self._version,
         }
 
 
@@ -110,25 +113,110 @@ class HuggingFaceBackend(BaseInferenceBackend):
         if isinstance(results, list) and len(results) > 0:
             item = results[0]
             if isinstance(item, list):
-                prob_dict = {r["label"]: round(float(r["score"]), 4) for r in item}
+                score_dict = {str(r["label"]): round(float(r["score"]), 4) for r in item}
                 top = max(item, key=lambda x: x["score"])
+                top_label = str(top["label"])
+                top_score = round(float(top["score"]), 4)
                 return {
-                    "predicted_class": top["label"],
-                    "confidence": round(float(top["score"]), 4),
-                    "probabilities": prob_dict,
-                }
-            elif isinstance(item, dict):
-                top_label = item.get("label", "OTHER")
-                top_score = round(float(item.get("score", 0.5)), 4)
-                return {
+                    "event_type": top_label,
                     "predicted_class": top_label,
                     "confidence": top_score,
-                    "probabilities": {top_label: top_score},
+                    "scores": score_dict,
+                    "probabilities": score_dict,
+                    "model_version": self._version,
+                }
+            elif isinstance(item, dict):
+                score_dict = {str(r.get("label", "OTHER")): round(float(r.get("score", 0.5)), 4) for r in results if isinstance(r, dict)}
+                top = max(results, key=lambda x: x.get("score", 0.0)) if all(isinstance(r, dict) for r in results) else item
+                top_label = str(top.get("label", "OTHER"))
+                top_score = round(float(top.get("score", 0.5)), 4)
+                return {
+                    "event_type": top_label,
+                    "predicted_class": top_label,
+                    "confidence": top_score,
+                    "scores": score_dict if score_dict else {top_label: top_score},
+                    "probabilities": score_dict if score_dict else {top_label: top_score},
+                    "model_version": self._version,
                 }
         return {
+            "event_type": "OTHER",
             "predicted_class": "OTHER",
             "confidence": 0.50,
+            "scores": {"OTHER": 0.50},
             "probabilities": {"OTHER": 0.50},
+            "model_version": self._version,
+        }
+
+
+class HybridEnsembleBackend(BaseInferenceBackend):
+    """Hybrid Serving Stack combining fast linear matcher (E1) with deep semantic classifier (E2).
+
+    Confidence Arbitrator:
+    - High-confidence fast path: if E1 confidence >= fast_threshold (0.85) or deep backend unavailable -> returns fast path (<2ms).
+    - Ambiguous zone / ensemble: blends normalized probabilities P = alpha * P(E1) + (1 - alpha) * P(E2).
+    """
+
+    def __init__(
+        self,
+        fast_backend: BaseInferenceBackend,
+        deep_backend: Optional[BaseInferenceBackend] = None,
+        fast_threshold: float = 0.85,
+        alpha: float = 0.5,
+    ) -> None:
+        self.fast_backend = fast_backend
+        self.deep_backend = deep_backend
+        self.fast_threshold = fast_threshold
+        self.alpha = alpha
+
+    @property
+    def model_version(self) -> str:
+        deep_ver = self.deep_backend.model_version if self.deep_backend else "NONE"
+        return f"E3_Hybrid({self.fast_backend.model_version}+{deep_ver})"
+
+    def predict(self, text: str) -> Dict[str, Any]:
+        fast_res = self.fast_backend.predict(text)
+        fast_conf = fast_res.get("confidence", 0.0)
+
+        # Fast-path exit if no deep backend or high confidence in unambiguous regime
+        if self.deep_backend is None or fast_conf >= self.fast_threshold:
+            res = dict(fast_res)
+            res["model_version"] = self.model_version
+            res["serving_path"] = "FAST_PATH"
+            return res
+
+        deep_res = self.deep_backend.predict(text)
+
+        # Ensemble class probabilities
+        fast_probs = fast_res.get("probabilities") or fast_res.get("scores", {})
+        deep_probs = deep_res.get("probabilities") or deep_res.get("scores", {})
+        all_classes = set(fast_probs.keys()).union(set(deep_probs.keys()))
+
+        blended_scores: Dict[str, float] = {}
+        for c in all_classes:
+            p_fast = fast_probs.get(c, 0.0)
+            p_deep = deep_probs.get(c, 0.0)
+            blended = self.alpha * p_fast + (1.0 - self.alpha) * p_deep
+            blended_scores[c] = round(float(blended), 4)
+
+        if blended_scores:
+            top_class = max(blended_scores.keys(), key=lambda k: blended_scores[k])
+            top_conf = blended_scores[top_class]
+        else:
+            top_class = fast_res.get("predicted_class", "OTHER")
+            top_conf = fast_conf
+
+        return {
+            "event_type": top_class,
+            "predicted_class": top_class,
+            "confidence": top_conf,
+            "scores": blended_scores,
+            "probabilities": blended_scores,
+            "model_version": self.model_version,
+            "serving_path": "DEEP_ENSEMBLE",
+            "ensemble_components": {
+                "fast": fast_res.get("model_version"),
+                "deep": deep_res.get("model_version"),
+            },
         }
 
 
@@ -149,11 +237,8 @@ class FinEventService:
     def _load_data(self) -> None:
         target_path = OPERATIONAL_DATA_PATH
         if not target_path.exists():
-            target_path = pathlib.Path("data/labels/gold.jsonl")
-            self.dataset_mode = "VERIFIED_SEEDS"
-
-        if not target_path.exists():
-            logger.warning("No operational or gold events found.")
+            self.dataset_mode = "NO_OPERATIONAL_DATA"
+            logger.warning("Operational events file %s not found. Degraded state: benchmark datasets are not served as operational data.", target_path)
             return
 
         with open(target_path, "r", encoding="utf-8") as f:
@@ -165,9 +250,35 @@ class FinEventService:
                     cik = item["cik"]
                     self.events_by_cik.setdefault(cik, []).append(item)
 
+        self.dataset_mode = "REAL_SEC"
         logger.info("Loaded %d events across %d companies (Mode: %s).", len(self.events), len(self.events_by_cik), self.dataset_mode)
 
     def _load_backend(self) -> BaseInferenceBackend:
+        # 0. Check for hybrid ensemble request
+        if self.backend_type == "E3_HYBRID":
+            fast_backend: BaseInferenceBackend
+            if MODEL_PATH.exists():
+                pipe = joblib.load(MODEL_PATH)
+                fast_backend = SklearnBackend(pipe, model_version="E1_TFIDF_LogReg")
+            else:
+                fast_backend = RuleBackend()
+
+            deep_backend: Optional[BaseInferenceBackend] = None
+            for p, ver in [(E2_DEBERTA_PATH, "E2_DEBERTA"), (E2_FINBERT_PATH, "E2_FINBERT")]:
+                if p.exists():
+                    try:
+                        from transformers import pipeline
+                        deep_backend = HuggingFaceBackend(pipeline("text-classification", model=str(p)), model_version=ver)
+                        self.cloud_weights_status = "LOADED_LOCAL"
+                        break
+                    except Exception as exc:
+                        logger.warning("Could not load %s for hybrid ensemble: %s", ver, exc)
+
+            if deep_backend is None:
+                self.fallback_reason = "E2_WEIGHTS_UNAVAILABLE_LOCAL"
+
+            return HybridEnsembleBackend(fast_backend=fast_backend, deep_backend=deep_backend)
+
         # 1. Check for requested E2 neural models
         if self.backend_type in {"E2_DEBERTA", "E2_FINBERT"}:
             target_path = E2_DEBERTA_PATH if self.backend_type == "E2_DEBERTA" else E2_FINBERT_PATH
@@ -239,11 +350,15 @@ class FinEventService:
 
         pred_res = self.backend.predict(text)
         evidence_span = primary_args.get("evidence") or text[:120]
+        event_type = pred_res.get("event_type") or pred_res.get("predicted_class", "OTHER")
+        confidence = pred_res.get("confidence", 0.5)
+        scores = pred_res.get("scores") or pred_res.get("probabilities", {})
 
         return {
-            "event_type": pred_res["predicted_class"],
-            "confidence": pred_res["confidence"],
-            "probabilities": pred_res["probabilities"],
+            "event_type": event_type,
+            "confidence": confidence,
+            "probabilities": scores,
+            "scores": scores,
             "arguments": primary_args,
             "multi_arguments": multi_args,
             "evidence_span": evidence_span,
