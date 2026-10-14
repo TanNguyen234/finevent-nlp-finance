@@ -89,11 +89,7 @@ def harvest_silver_disclosures() -> List[Dict[str, Any]]:
     client = SECSubmissionsClient(cache_dir=RAW_SEC_DIR)
     downloader = FilingDownloader(output_dir=RAW_SEC_DIR)
 
-    target_ciks = [
-        ("0000320193", "Apple Inc."),
-        ("0000789019", "Microsoft Corporation"),
-        ("0001045810", "NVIDIA Corporation"),
-    ]
+    target_ciks = list(TRACKED_CIKS.items())
 
     all_harvested_samples: List[Dict[str, Any]] = []
 
@@ -103,7 +99,7 @@ def harvest_silver_disclosures() -> List[Dict[str, Any]]:
             manifest = client.get_filings_manifest(
                 cik=cik,
                 form_filter="8-K",
-                limit=8,
+                limit=12,
                 discover_exhibits=True,
             )
         except Exception as exc:
@@ -113,8 +109,8 @@ def harvest_silver_disclosures() -> List[Dict[str, Any]]:
         filings_with_exhibits = [m for m in manifest if m.get("exhibits")]
         logger.info("Found %d 8-K filings with exhibits for %s.", len(filings_with_exhibits), company_name)
 
-        # Download up to 3 filings with exhibits per company
-        for filing in filings_with_exhibits[:3]:
+        # Download up to 5 filings with exhibits per company
+        for filing in filings_with_exhibits[:5]:
             acc = filing["accession_number"]
             filing_date = filing.get("filing_date", "UNKNOWN")
             for exh in filing.get("exhibits", []):
@@ -171,7 +167,7 @@ def harvest_silver_disclosures() -> List[Dict[str, Any]]:
     return all_harvested_samples
 
 
-def build_curated_silver_splits(samples: List[Dict[str, Any]], target_total: int = 70) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+def build_curated_silver_splits(samples: List[Dict[str, Any]], target_total: int = 360) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Curate balanced, non-duplicate samples and split into train/val/test."""
     # Deduplicate by text content
     seen_texts = set()
@@ -194,14 +190,14 @@ def build_curated_silver_splits(samples: List[Dict[str, Any]], target_total: int
     val_split: List[Dict[str, Any]] = []
     test_split: List[Dict[str, Any]] = []
 
-    per_class_limit = max(14, target_total // len(CLASSES))
+    per_class_limit = max(70, target_total // len(CLASSES))
     for c in CLASSES:
         items = list(by_class[c][:per_class_limit])
         n_c = len(items)
         if n_c == 0:
             continue
-        n_val = max(2, int(n_c * 0.15))
-        n_test = max(2, int(n_c * 0.15))
+        n_val = max(4, int(n_c * 0.15))
+        n_test = max(4, int(n_c * 0.15))
         n_train = n_c - n_val - n_test
         if n_train < 2:
             n_train = max(1, n_c - 2)

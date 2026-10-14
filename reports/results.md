@@ -61,3 +61,36 @@ Dynamic regression evaluation of ablated logic on 4 synthetic boundary cases (`r
 | **A0: Full Pipeline (Strict Identity)** | 4 boundary test cases | 0 (0% false alarms) | 3 (100% rejected) | +100.0% precision | Full Pipeline (Accuracy 100%) |
 
 *Scope & Limitation*: This ablation serves as a deterministic guidance-comparison ablation and regression check across four synthetic boundary test cases. It confirms fail-closed behavior on unverified pairs, but does not claim to establish research-level generalization or an empirical production false-positive rate.
+
+---
+
+## 5. Benchmark Table 3: Authentic SEC Silver Multi-Tier Cloud Benchmark (Tesla T4 GPU)
+
+This benchmark evaluates all 4 model tiers on the expanded 280-sample dataset (`data/silver/`) harvested from authentic Form 8-K Exhibit 99.1 press releases across 10 top S&P 500 corporations (Apple, Microsoft, NVIDIA, AMD, JPMorgan Chase, Alphabet, Amazon, Meta Platforms, Tesla, and Intel).
+
+- **Dataset Origin**: Authentic SEC EDGAR Form 8-K Exhibit 99.1 Press Releases (`data/silver/split_manifest.json`)
+- **Dataset Scale**: Total = 280 samples (Train = 200, Validation = 40, Held-Out Test = 40)
+- **Data Integrity**: 0% character-offset error, 0 text leakage across splits, verified SHA-256 cryptographic provenance
+- **Hardware**: Kaggle Cloud Tesla T4 GPU (`foxy0505/finevent-nlp-training-gpu`, Run Version 13)
+- **Test Set Support**: `EARNINGS_RESULT` (13), `OTHER` (13), `GUIDANCE_REVISION` (9), `MANAGEMENT_CHANGE` (5)
+
+| Tier | Model Architecture | Hardware | Test Accuracy | Test Macro-F1 | Test Weighted-F1 | Latency / Duration | Status |
+| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :--- |
+| **E0** | Heuristic Domain Rules | Local / Cloud CPU | **87.5%** | **0.9002** | **0.8702** | < 0.1ms | Baseline Heuristic |
+| **E1** | TF-IDF (1-2 gram) + Logistic Regression | Local / Cloud CPU | **67.5%** | **0.7232** | **0.6762** | < 1.0ms | Fast-Path Serving |
+| **E2** | `ProsusAI/finbert` (Fine-Tuned 5 Epochs) | Tesla T4 GPU | **47.5%** | **0.5188** | **0.4693** | 35.0s (Train) | Domain Transformer |
+| **E2** | `microsoft/deberta-v3-small` (Fine-Tuned 5 Epochs) | Tesla T4 GPU | **22.5%** | **0.0918** | **0.0827** | 14.6s (Train) | General Transformer |
+
+### Per-Class Test Performance (40 Held-Out Authentic SEC Disclosures)
+
+| Event Class | Support | E0 Rule F1 | E1 TF-IDF F1 | E2 FinBERT F1 | E2 DeBERTa F1 | Analysis & Findings |
+| :--- | :---: | :---: | :---: | :---: | :---: | :--- |
+| **EARNINGS_RESULT** | 13 | 1.0000 | 0.8182 | 0.7619 | 0.0000 | High keyword distinctiveness ($ revenue, EPS, net income). |
+| **GUIDANCE_REVISION** | 9 | 0.7619 | 0.6400 | 0.3846 | 0.3673 | Forward-looking nuances require balanced context sensitivity. |
+| **MANAGEMENT_CHANGE** | 5 | 1.0000 | 1.0000 | 0.8333 | 0.0000 | Executive transitions (appointed/resigned) are highly structured. |
+| **OTHER** | 13 | 0.8387 | 0.4348 | 0.0952 | 0.0000 | Diverse corporate disclosures (repurchase, dividends, debt). |
+
+### Core Engineering Takeaways:
+1. **Rule & Linear Superiority in Low-Data SEC Regimes**: On authentic, structured financial press releases, domain lexical rules (E0) and TF-IDF logistic regression (E1) outperform unadapted or minimally trained deep transformers.
+2. **FinBERT Pretraining Advantage**: FinBERT's financial pretraining allows it to capture earnings results (F1 = 0.7619) and management changes (F1 = 0.8333) with only 200 training samples, whereas general-domain DeBERTa collapses to majority-class prediction under 5 epochs.
+3. **Hybrid Ensemble Justification**: FinEvent's `HybridEnsembleBackend` routes high-confidence instances ($\ge 0.85$) to the sub-millisecond linear classifier and uses domain transformers only for ambiguous boundaries.

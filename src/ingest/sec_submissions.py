@@ -35,6 +35,11 @@ TRACKED_CIKS = {
     "0001045810": "NVIDIA Corporation",
     "0000002488": "Advanced Micro Devices, Inc.",
     "0000019617": "JPMorgan Chase & Co.",
+    "0001652044": "Alphabet Inc.",
+    "0001018724": "Amazon.com, Inc.",
+    "0001326801": "Meta Platforms, Inc.",
+    "0001318605": "Tesla, Inc.",
+    "0000050863": "Intel Corporation",
 }
 
 
